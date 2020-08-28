@@ -1,5 +1,5 @@
 [package]
-name = "subgraph-rs"
+name = "subgraph"
 version = "0.1.0"
 authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2018"
