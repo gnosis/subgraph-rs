@@ -1,0 +1,27 @@
+specVersion: 0.0.2
+description: Deep Thought
+repository: https://github.com/gnosis/subgraph-rs
+schema:
+  file: schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: DeepThought
+    network: mainnet
+    source:
+      address: "0xe78a0f7e598cc8b0bb87894b0f60dd2a88d6a8ab"
+      abi: DeepThought
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.4
+      language: wasm/assemblyscript
+      entities:
+        - Answer
+      abis:
+        - name: DeepThought
+          file: DeepThought/abis/DeepThought.abi
+      eventHandlers:
+        - event: GreatOnTurning(address,uint64)
+          handler: greatOnTurning
+        - event: DayOfTheAnswer(address,uint256)
+          handler: dayOfTheAnswer
+      file: DeepThought/DeepThought.wasm
