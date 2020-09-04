@@ -1,0 +1,8 @@
+type Answer @entity {
+  id: ID!
+  greatOnTurning: BigInt!
+  lunkwillAndFook: Bytes!
+  dayOfTheAnswer: BigInt
+  loonquawlAndPhouchg: Bytes
+  answerToLifeTheUniverseAndEverything: Int
+}
