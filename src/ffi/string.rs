@@ -67,7 +67,6 @@ pub struct AscString {
 
 impl AscString {
     /// Creates a new AssemblyScript string from a Rust string slice.
-    #[allow(unused)]
     pub fn new(s: impl AsRef<str>) -> Box<Self> {
         let s = s.as_ref();
         let len = s.encode_utf16().count();
