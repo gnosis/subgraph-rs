@@ -96,19 +96,18 @@ impl Debug for AscString {
     }
 }
 
-/// A Rust dynamically sized type fat pointer.
-#[repr(C)]
-struct DstRef {
-    ptr: *const u8,
-    len: usize,
-}
-
 /// Returns the memory layout for an AssemblyScript string.
 fn string_layout(len: usize) -> Result<Layout, LayoutErr> {
-    let (layout, _) = Layout::new::<usize>().extend(Layout::array::<i16>(len)?)?;
+    let (layout, _) = Layout::new::<usize>().extend(Layout::array::<u16>(len)?)?;
     // NOTE: Pad to alignment for C ABI compatibility. See
     // <https://doc.rust-lang.org/std/alloc/struct.Layout.html#method.extend>
     Ok(layout.pad_to_align())
+}
+
+/// A Rust dynamically sized type fat pointer.
+struct DstRef {
+    ptr: *const u8,
+    len: usize,
 }
 
 /// Allocates an empty uninitialized AssemblyScript string with the
@@ -136,12 +135,14 @@ mod tests {
     }
 
     #[test]
-    fn string_has_c_layout() {
+    fn string_layout_matches_type() {
         let string = AscString::new("1");
         let layout = Layout::for_value(&*string);
         assert_eq!(layout, string_layout(1).unwrap());
+    }
 
-        // NOTE: Also check that it matches the intrinsic Rust DST layout.
+    #[test]
+    fn string_layout_matches_dst_layout() {
         assert_eq!(
             Layout::for_value(&*{
                 let inner: Box<Inner<[u16]>> = Box::new(Inner {
