@@ -111,9 +111,10 @@ fn string_layout(len: usize) -> Result<Layout, LayoutErr> {
 }
 
 /// A Rust dynamically sized type fat pointer.
-#[allow(dead_code)]
 struct DstRef {
+    #[allow(dead_code)]
     ptr: *const u8,
+    #[allow(dead_code)]
     len: usize,
 }
 
