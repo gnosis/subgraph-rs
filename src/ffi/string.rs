@@ -67,7 +67,6 @@ pub struct AscString {
 
 impl AscString {
     /// Creates a new AssemblyScript string from a Rust string slice.
-    #[allow(unused)]
     pub fn new(s: impl AsRef<str>) -> Box<Self> {
         let s = s.as_ref();
         let len = s.encode_utf16().count();
@@ -112,9 +111,10 @@ fn string_layout(len: usize) -> Result<Layout, LayoutErr> {
 }
 
 /// A Rust dynamically sized type fat pointer.
-#[allow(dead_code)]
 struct DstRef {
+    #[allow(dead_code)]
     ptr: *const u8,
+    #[allow(dead_code)]
     len: usize,
 }
 

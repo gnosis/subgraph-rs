@@ -7,3 +7,4 @@ description = "Write subgraph mappings in Rust 🦀"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+log = "0.4.11"
