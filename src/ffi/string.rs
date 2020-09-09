@@ -30,7 +30,9 @@ struct Inner<T: ?Sized> {
 /// to only use `AscStr` (and not `AscString`) as exported and imported function
 /// parameter types.
 #[repr(transparent)]
-pub struct AscStr(Inner<[u16; 0]>);
+pub struct AscStr {
+    inner: Inner<[u16; 0]>,
+}
 
 impl AscStr {
     /// Converts the AssemblyScript string into a Rust `String`.
@@ -47,7 +49,7 @@ impl AscStr {
 
     /// Returns a slice of the utf-16 code points for this string.
     fn as_code_points(&self) -> &[u16] {
-        unsafe { slice::from_raw_parts(&self.0.buf as *const _, self.0.len) }
+        unsafe { slice::from_raw_parts(&self.inner.buf as *const _, self.inner.len) }
     }
 }
 
@@ -59,7 +61,9 @@ impl Debug for AscStr {
 
 /// An AssemblyScript string.
 #[repr(transparent)]
-pub struct AscString(Inner<[u16]>);
+pub struct AscString {
+    inner: Inner<[u16]>,
+}
 
 impl AscString {
     /// Creates a new AssemblyScript string from a Rust string slice.
@@ -67,10 +71,13 @@ impl AscString {
     pub fn new(s: impl AsRef<str>) -> Box<Self> {
         let s = s.as_ref();
         let len = s.encode_utf16().count();
-        let mut string = unsafe { alloc_string(len).unwrap() };
-        string.0.len = len;
+        let mut string = unsafe {
+            alloc_string(len)
+                .expect("attempted to allocate a string that is larger than the address space.")
+        };
+        string.inner.len = len;
         for (i, c) in s.encode_utf16().enumerate() {
-            string.0.buf[i] = c;
+            string.inner.buf[i] = c;
         }
 
         string
@@ -78,7 +85,7 @@ impl AscString {
 
     /// Returns a reference to a borrowed AssemblyScript string.
     pub fn as_asc_str(&self) -> &AscStr {
-        unsafe { &*(&self.0.len as *const usize).cast::<AscStr>() }
+        unsafe { &*(&self.inner.len as *const usize).cast::<AscStr>() }
     }
 }
 
@@ -105,6 +112,7 @@ fn string_layout(len: usize) -> Result<Layout, LayoutErr> {
 }
 
 /// A Rust dynamically sized type fat pointer.
+#[allow(dead_code)]
 struct DstRef {
     ptr: *const u8,
     len: usize,
@@ -168,7 +176,8 @@ mod tests {
     #[test]
     fn string_has_length_set() {
         let string = AscString::new("1");
-        assert_eq!(string.0.len, string.0.buf.len());
+        assert_eq!(string.inner.len, string.inner.buf.len());
+        assert_eq!(string.inner.len, 1);
     }
 
     #[test]
@@ -191,6 +200,6 @@ mod tests {
     #[should_panic]
     fn string_access_out_of_bounds() {
         let string = AscString::new("1");
-        let _ = string.0.buf[1];
+        let _ = string.inner.buf[1];
     }
 }
