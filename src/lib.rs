@@ -1,6 +1,10 @@
+//! [The Graph](https://thegraph.com/docs/introduction) subgraph bindings for
+//! Rust 🦀
+
 mod abort;
 mod ffi;
 mod logger;
+mod num;
 
 pub use log;
 
