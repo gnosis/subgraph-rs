@@ -6,5 +6,8 @@ edition = "2018"
 description = "Write subgraph mappings in Rust 🦀"
 license = "MIT OR Apache-2.0"
 
+[workspace]
+members = ["samples/*"]
+
 [dependencies]
 log = "0.4.11"
