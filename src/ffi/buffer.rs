@@ -32,6 +32,11 @@ impl<T, A> AscBuf<T, A> {
     /// Returns the buffer as a Rust slice.
     pub fn as_slice(&self) -> &[T] {
         let Inner { len, buf } = &self.inner;
+
+        // SAFETY: `AscBuf` can only be constructed from an `AscBuffer` which
+        // correctly allocates the storage starting at `buf` to have `len`
+        // elements. Additionally we *assume* that all `AscBuf` references from
+        // host calls are valid in the same way.
         unsafe { slice::from_raw_parts((buf as *const A).cast(), *len) }
     }
 }
@@ -57,6 +62,9 @@ impl<T, A> AscBuffer<T, A> {
     /// Creates a new AssemblyScript buffer from the specified slice.
     pub fn new(slice: impl AsRef<[T]>) -> Box<Self> {
         let slice = slice.as_ref();
+
+        // SAFETY: The allocated buffer is guaranteed to be completely
+        // initialized.
         unsafe {
             let mut buffer = alloc_buffer::<T, A>(slice.len());
             buffer.inner.len = slice.len();
@@ -121,6 +129,11 @@ struct DstRef {
 
 /// Allocates an empty uninitialized AssemblyScript buffer with the specified
 /// dynamic length.
+///
+/// # Safety
+///
+/// This method returns an *uninitialized* AssemblyScript buffer. It is
+/// undefined behaviour to use if without proper initialization.
 unsafe fn alloc_buffer<T, A>(len: usize) -> Box<AscBuffer<T, A>> {
     let layout = buffer_layout::<T, A>(len)
         .expect("attempted to allocate a buffer that is larger than the address space.");
