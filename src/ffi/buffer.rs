@@ -29,7 +29,7 @@ pub struct AscBuf<T, Alignment = T> {
 }
 
 impl<T, A> AscBuf<T, A> {
-    /// Returns the array buffer as a Rust byte slice.
+    /// Returns the buffer as a Rust slice.
     pub fn as_slice(&self) -> &[T] {
         let Inner { len, buf } = &self.inner;
         unsafe { slice::from_raw_parts((buf as *const A).cast(), *len) }
@@ -58,10 +58,9 @@ impl<T, A> AscBuffer<T, A> {
     pub fn new(slice: impl AsRef<[T]>) -> Box<Self> {
         let slice = slice.as_ref();
         unsafe {
-            let mut buffer = alloc_buffer::<T, A>(slice.len())
-                .expect("attempted to allocate a buffer that is larger than the address space.");
-
+            let mut buffer = alloc_buffer::<T, A>(slice.len());
             buffer.inner.len = slice.len();
+
             // NOTE: Use `ptr::copy` here since the allocated buffer contains
             // unintialized memory. It is considered undefined behaviour to
             // create a reference to uninitialized memory in Rust.
@@ -78,6 +77,11 @@ impl<T, A> AscBuffer<T, A> {
     /// Returns a reference to a borrowed AssemblyScript string.
     pub fn as_buf(&self) -> &AscBuf<T, A> {
         unsafe { &*(&self.inner.len as *const usize).cast::<AscBuf<T, A>>() }
+    }
+
+    /// Returns an FFI-safe pointer to an AssemblyScript buffer.
+    pub fn as_buf_ptr(&self) -> *const AscBuf<T, A> {
+        self.as_buf() as *const _
     }
 }
 
@@ -116,25 +120,24 @@ struct DstRef {
 
 /// Allocates an empty uninitialized AssemblyScript string with the
 /// specified length.
-unsafe fn alloc_buffer<T, A>(len: usize) -> Result<Box<AscBuffer<T, A>>, LayoutErr> {
-    let layout = buffer_layout::<T, A>(len)?;
+unsafe fn alloc_buffer<T, A>(len: usize) -> Box<AscBuffer<T, A>> {
+    let layout = buffer_layout::<T, A>(len)
+        .expect("attempted to allocate a buffer that is larger than the address space.");
 
     // NOTE: Rust only has partial DST support, so we need to use some unsafe
     // magic to create a fat `Box` for a DST since there is currently no stable
     // safe way to create one otherwise.
-    let buffer = mem::transmute(DstRef {
+    mem::transmute(DstRef {
         ptr: alloc::alloc(layout),
         // NOTE: Guaranteed not to overflow, or else creating the layout would
         // have errored.
         len: ceil_div(len * mem::size_of::<T>(), mem::size_of::<A>()),
-    });
-
-    Ok(buffer)
+    })
 }
 
 /// Ceiling integer usize division.
 fn ceil_div(n: usize, d: usize) -> usize {
-    (n - 1 + d) / d
+    (n + d - 1) / d
 }
 
 #[cfg(test)]
@@ -200,5 +203,26 @@ mod tests {
     fn buffer_access_out_of_bounds() {
         let buffer = AscBuffer::<u32, usize>::new([0]);
         let _ = buffer.inner.buf[1];
+    }
+
+    #[test]
+    fn owned_and_borrowed_layout() {
+        let buf = AscBuf {
+            _type: PhantomData::<u8>,
+            inner: Inner::<[u64; 0]> { len: 0, buf: [] },
+        };
+
+        let empty_buffer = AscBuffer::<u8, u64>::new([]);
+        assert_eq!(Layout::for_value(&*empty_buffer), Layout::for_value(&buf));
+
+        let buffer = AscBuffer::<u8, u64>::new([0]);
+        assert_eq!(
+            ptr_offset(&buffer.inner.len, &buffer.inner.buf[0]),
+            ptr_offset(&buf.inner.len, &buf.inner.buf),
+        );
+    }
+
+    fn ptr_offset<T, U>(x: &T, y: &U) -> isize {
+        ((x as *const T) as isize) - ((y as *const U) as isize)
     }
 }
