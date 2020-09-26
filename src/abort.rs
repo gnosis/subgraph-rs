@@ -23,13 +23,9 @@ pub fn set_panic_hook() {
             (None, 0, 0)
         };
 
+        let file = file.as_ref().map(|f| f.as_asc_str());
         unsafe {
-            abort(
-                &*message,
-                file.as_ref().map(|f| f.as_asc_str()),
-                line,
-                column,
-            );
+            abort(&*message, file, line, column);
         }
     }));
 }

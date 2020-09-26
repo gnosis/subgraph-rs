@@ -1,3 +1,6 @@
+//! [The Graph](https://thegraph.com/docs/introduction) subgraph bindings for
+//! Rust 🦀
+
 mod abort;
 mod ffi;
 mod logger;
@@ -10,7 +13,7 @@ pub mod exports {
     use crate::{abort, logger};
     use std::{
         alloc::{self, Layout},
-        mem,
+        mem, ptr,
     };
 
     /// The Wasm start function. This gets set as the module's start function
@@ -28,6 +31,17 @@ pub mod exports {
     pub extern "C" fn alloc(size: usize) -> *mut u8 {
         // NOTE: Use the maximum wasm32 alignment by default.
         const ALIGN: usize = mem::size_of::<u64>();
-        unsafe { alloc::alloc(Layout::from_size_align_unchecked(ALIGN, size)) }
+
+        let layout = match Layout::from_size_align(ALIGN, size) {
+            Ok(value) => value,
+            Err(_) => {
+                // NOTE: Since `ALIGN` is guaranteed to be valid, this can only
+                // happen if `size` overflows when padding to `ALIGN`. Return
+                // null to signal that the allocation failed.
+                return ptr::null_mut();
+            }
+        };
+
+        unsafe { alloc::alloc(layout) }
     }
 }
