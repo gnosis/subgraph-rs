@@ -74,7 +74,7 @@ impl<T, A> AscBuffer<T, A> {
         }
     }
 
-    /// Returns a reference to a borrowed AssemblyScript string.
+    /// Returns a reference to a borrowed AssemblyScript buffer.
     pub fn as_buf(&self) -> &AscBuf<T, A> {
         unsafe { &*(&self.inner.len as *const usize).cast::<AscBuf<T, A>>() }
     }
@@ -102,7 +102,8 @@ where
     }
 }
 
-/// Returns the memory layout for an AssemblyScript string.
+/// Returns the memory layout for an AssemblyScript buffer with the specified
+/// dynamic length.
 fn buffer_layout<T, A>(len: usize) -> Result<Layout, LayoutErr> {
     let (layout, _) = Layout::new::<AscBuf<T, A>>().extend(Layout::array::<T>(len)?)?;
     // NOTE: Pad to alignment for C ABI compatibility. See
@@ -118,8 +119,8 @@ struct DstRef {
     len: usize,
 }
 
-/// Allocates an empty uninitialized AssemblyScript string with the
-/// specified length.
+/// Allocates an empty uninitialized AssemblyScript buffer with the specified
+/// dynamic length.
 unsafe fn alloc_buffer<T, A>(len: usize) -> Box<AscBuffer<T, A>> {
     let layout = buffer_layout::<T, A>(len)
         .expect("attempted to allocate a buffer that is larger than the address space.");

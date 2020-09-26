@@ -4,7 +4,6 @@
 mod abort;
 mod ffi;
 mod logger;
-mod num;
 
 pub use log;
 
