@@ -1,6 +1,6 @@
 //! Module containing logger implementation.
 
-use crate::ffi::string::{AscStr, AscString};
+use crate::{ffi::string::AscString, sys};
 use log::{Level, LevelFilter, Log, Metadata, Record};
 
 /// The main logger implementation for the `log` facade crate.
@@ -21,7 +21,7 @@ impl Log for Logger {
         let message = AscString::new(record.args().to_string());
 
         unsafe {
-            log(level, &message);
+            sys::log::log(level, &message);
         }
     }
 
@@ -39,9 +39,3 @@ const ERROR: u32 = 1;
 const WARNING: u32 = 2;
 const INFO: u32 = 3;
 const DEBUG: u32 = 4;
-
-#[link(wasm_import_module = "index")]
-extern "C" {
-    #[link_name = "log.log"]
-    fn log(level: u32, message: &AscStr);
-}

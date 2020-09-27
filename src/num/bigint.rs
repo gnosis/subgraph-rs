@@ -1,9 +1,6 @@
 //! Subgraph arbitrary precision integer implementation.
 
-use crate::ffi::{
-    array::{AscArrayBuffer, AscUint8Array},
-    string::AscStr,
-};
+use crate::{ffi::array::AscArrayBuffer, sys};
 use std::{
     fmt::{self, Debug, Display, Formatter},
     ops::Add,
@@ -46,7 +43,7 @@ impl BigInt {
         let y = rhs.as_host();
 
         // SAFETY: The host allocation gets cloned to an owned array buffer.
-        let inner = unsafe { plus(x, y).to_array_buffer() };
+        let inner = unsafe { sys::bigInt::plus(x, y).to_array_buffer() };
 
         Self { inner }
     }
@@ -71,8 +68,8 @@ impl BigInt {
         }
     }
 
-    fn as_host(&self) -> HostBigInt<'_> {
-        HostBigInt::new(&self.inner)
+    fn as_host(&self) -> sys::BigInt<'_> {
+        sys::BigInt::new(&self.inner)
     }
 }
 
@@ -86,7 +83,7 @@ impl Display for BigInt {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let x = self.as_host();
         let s = {
-            let asc_str = unsafe { bigIntToString(x) };
+            let asc_str = unsafe { sys::typeConversion::bigIntToString(x) };
             asc_str
                 .to_string()
                 .expect("integer strings are always valid UTF-16")
@@ -119,18 +116,6 @@ macro_rules! from_primitive {
 from_primitive! {
     from_signed_bytes_le: i8, i16, i32, i64, i128, isize;
     from_unsigned_bytes_le: u8, u16, u32, u64, u128, usize;
-}
-
-/// The host `BigInt` type.
-type HostBigInt<'a> = AscUint8Array<'a>;
-
-#[link(wasm_import_module = "index")]
-extern "C" {
-    #[link_name = "bigInt.plus"]
-    fn plus<'host>(x: HostBigInt, y: HostBigInt) -> HostBigInt<'host>;
-
-    #[link_name = "typeConversion.bigIntToString"]
-    fn bigIntToString(x: HostBigInt) -> &AscStr;
 }
 
 #[cfg(test)]

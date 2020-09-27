@@ -5,11 +5,13 @@ mod abort;
 mod ffi;
 mod logger;
 mod num;
+mod sys;
 
+pub use self::num::bigint::BigInt;
 pub use log;
-pub use num::bigint::BigInt;
 
 /// Module containing required Wasm exports.
+#[cfg(target_arch = "wasm32")]
 #[doc(hidden)]
 pub mod exports {
     use crate::{abort, logger};
@@ -46,4 +48,14 @@ pub mod exports {
 
         unsafe { alloc::alloc(layout) }
     }
+}
+
+/// Unused exports when not targetting for The Graph host. This unused method
+/// declaration ensures that certain methods that don't have a public API don't
+/// cause `unused` class linter errors in that case.
+#[cfg(not(target_arch = "wasm32"))]
+fn unused_exports() {
+    #![allow(unused)]
+    let _ = abort::set_panic_hook;
+    let _ = logger::init;
 }

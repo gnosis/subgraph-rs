@@ -1,6 +1,6 @@
 //! Module implementing panic handler that calls the host's `abort` method.
 
-use crate::ffi::string::{AscStr, AscString};
+use crate::{ffi::string::AscString, sys};
 use std::panic;
 
 /// Sets the panic hook to use the host provided `abort` call.
@@ -25,13 +25,7 @@ pub fn set_panic_hook() {
 
         let file = file.as_ref().map(|f| f.as_asc_str());
         unsafe {
-            abort(&*message, file, line, column);
+            sys::abort(&*message, file, line, column);
         }
     }));
-}
-
-#[link(wasm_import_module = "env")]
-extern "C" {
-    #[link_name = "abort"]
-    fn abort(message: &AscStr, file: Option<&AscStr>, line: u32, column: u32) -> !;
 }
