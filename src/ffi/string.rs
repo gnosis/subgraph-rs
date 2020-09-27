@@ -38,7 +38,7 @@ impl Debug for AscStr {
 
 /// An AssemblyScript string.
 pub struct AscString {
-    inner: AscBuffer<u16>,
+    inner: Box<AscBuffer<u16>>,
 }
 
 impl AscString {

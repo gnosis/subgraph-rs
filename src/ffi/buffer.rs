@@ -63,7 +63,7 @@ where
 }
 
 impl<T, A> ToOwned for AscBuf<T, A> {
-    type Owned = AscBuffer<T, A>;
+    type Owned = Box<AscBuffer<T, A>>;
 
     fn to_owned(&self) -> Self::Owned {
         AscBuffer::new(self)
@@ -74,12 +74,12 @@ impl<T, A> ToOwned for AscBuf<T, A> {
 /// and aligned to `Alignment`.
 pub struct AscBuffer<T, Alignment = T> {
     _type: PhantomData<T>,
-    inner: Box<Inner<[Alignment]>>,
+    inner: Inner<[Alignment]>,
 }
 
 impl<T, A> AscBuffer<T, A> {
     /// Creates a new AssemblyScript buffer from the specified slice.
-    pub fn new(slice: impl AsRef<[T]>) -> Self {
+    pub fn new(slice: impl AsRef<[T]>) -> Box<Self> {
         let slice = slice.as_ref();
 
         // SAFETY: The allocated buffer is guaranteed to be completely
@@ -112,7 +112,7 @@ impl<T, A> AscBuffer<T, A> {
     }
 }
 
-impl<T, A> Borrow<AscBuf<T, A>> for AscBuffer<T, A> {
+impl<T, A> Borrow<AscBuf<T, A>> for Box<AscBuffer<T, A>> {
     fn borrow(&self) -> &AscBuf<T, A> {
         self.as_buf()
     }
@@ -159,24 +159,19 @@ struct DstRef {
 ///
 /// This method returns an *uninitialized* AssemblyScript buffer. It is
 /// undefined behaviour to use if without proper initialization.
-unsafe fn alloc_buffer<T, A>(len: usize) -> AscBuffer<T, A> {
+unsafe fn alloc_buffer<T, A>(len: usize) -> Box<AscBuffer<T, A>> {
     let layout = buffer_layout::<T, A>(len)
         .expect("attempted to allocate a buffer that is larger than the address space.");
 
     // NOTE: Rust only has partial DST support, so we need to use some unsafe
     // magic to create a fat `Box` for a DST since there is currently no stable
     // safe way to create one otherwise.
-    let inner = mem::transmute(DstRef {
+    mem::transmute(DstRef {
         ptr: alloc::alloc(layout),
         // NOTE: Guaranteed not to overflow, or else creating the layout would
         // have errored.
         len: ceil_div(len * mem::size_of::<T>(), mem::size_of::<A>()),
-    });
-
-    AscBuffer {
-        _type: PhantomData,
-        inner,
-    }
+    })
 }
 
 /// Ceiling integer usize division.
@@ -191,7 +186,7 @@ mod tests {
     #[test]
     fn buffer_layout_matches_type() {
         let buffer = AscBuffer::<u8, u64>::new([1u8]);
-        let layout = Layout::for_value(&*buffer.inner);
+        let layout = Layout::for_value(&*buffer);
         assert_eq!(layout, buffer_layout::<u8, u64>(1).unwrap());
     }
 
@@ -257,10 +252,7 @@ mod tests {
         };
 
         let empty_buffer = AscBuffer::<u8, u64>::new([]);
-        assert_eq!(
-            Layout::for_value(&*empty_buffer.inner),
-            Layout::for_value(&buf)
-        );
+        assert_eq!(Layout::for_value(&*empty_buffer), Layout::for_value(&buf));
 
         let buffer = AscBuffer::<u8, u64>::new([0]);
         assert_eq!(
