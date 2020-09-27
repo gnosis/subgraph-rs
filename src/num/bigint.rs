@@ -33,7 +33,7 @@ impl BigInt {
         }
     }
 
-    /// Creates a `BigInt` instance from unsigned little endian bytes.
+    /// Creates a `BigInt` instance from signed little endian bytes.
     pub fn from_signed_bytes_le(bytes: impl AsRef<[u8]>) -> Self {
         Self {
             inner: AscArrayBuffer::new(bytes.as_ref()),

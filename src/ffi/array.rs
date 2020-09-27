@@ -40,3 +40,19 @@ impl<'a> AscUint8Array<'a> {
         AscArrayBuffer::new(self.as_bytes())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::alloc::Layout;
+
+    #[test]
+    fn array_buffer_layout() {
+        let buffer = AscArrayBuffer::new(b"\x00\x01\x02");
+        assert_eq!(buffer.len(), 3);
+        assert_eq!(
+            Layout::for_value(&*buffer),
+            Layout::new::<(usize, [u64; 0], [u8; 3])>().pad_to_align(),
+        );
+    }
+}
