@@ -2,6 +2,7 @@
 
 use std::{
     alloc::{self, Layout, LayoutErr},
+    borrow::{Borrow, ToOwned},
     fmt::{self, Debug, Formatter},
     marker::PhantomData,
     mem,
@@ -29,6 +30,11 @@ pub struct AscBuf<T, Alignment = T> {
 }
 
 impl<T, A> AscBuf<T, A> {
+    /// Returns the number of elements in the buffer.
+    pub fn len(&self) -> usize {
+        self.inner.len
+    }
+
     /// Returns the buffer as a Rust slice.
     pub fn as_slice(&self) -> &[T] {
         let Inner { len, buf } = &self.inner;
@@ -41,6 +47,12 @@ impl<T, A> AscBuf<T, A> {
     }
 }
 
+impl<T, A> AsRef<[T]> for AscBuf<T, A> {
+    fn as_ref(&self) -> &[T] {
+        self.as_slice()
+    }
+}
+
 impl<T, A> Debug for AscBuf<T, A>
 where
     T: Debug,
@@ -50,9 +62,16 @@ where
     }
 }
 
+impl<T, A> ToOwned for AscBuf<T, A> {
+    type Owned = Box<AscBuffer<T, A>>;
+
+    fn to_owned(&self) -> Self::Owned {
+        AscBuffer::new(self)
+    }
+}
+
 /// An owned AssemblyScript dynamically sized buffer with elements of type `T`
 /// and aligned to `Alignment`.
-#[repr(transparent)]
 pub struct AscBuffer<T, Alignment = T> {
     _type: PhantomData<T>,
     inner: Inner<[Alignment]>,
@@ -90,6 +109,12 @@ impl<T, A> AscBuffer<T, A> {
     /// Returns an FFI-safe pointer to an AssemblyScript buffer.
     pub fn as_buf_ptr(&self) -> *const AscBuf<T, A> {
         self.as_buf() as *const _
+    }
+}
+
+impl<T, A> Borrow<AscBuf<T, A>> for Box<AscBuffer<T, A>> {
+    fn borrow(&self) -> &AscBuf<T, A> {
+        self.as_buf()
     }
 }
 

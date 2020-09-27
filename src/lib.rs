@@ -4,8 +4,10 @@
 mod abort;
 mod ffi;
 mod logger;
+mod num;
 
 pub use log;
+pub use num::bigint::BigInt;
 
 /// Module containing required Wasm exports.
 #[doc(hidden)]
