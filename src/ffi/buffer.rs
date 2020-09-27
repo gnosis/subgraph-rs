@@ -2,6 +2,7 @@
 
 use std::{
     alloc::{self, Layout, LayoutErr},
+    borrow::{Borrow, ToOwned},
     fmt::{self, Debug, Formatter},
     marker::PhantomData,
     mem,
@@ -29,6 +30,11 @@ pub struct AscBuf<T, Alignment = T> {
 }
 
 impl<T, A> AscBuf<T, A> {
+    /// Returns the number of elements in the buffer.
+    pub fn len(&self) -> usize {
+        self.inner.len
+    }
+
     /// Returns the buffer as a Rust slice.
     pub fn as_slice(&self) -> &[T] {
         let Inner { len, buf } = &self.inner;
@@ -41,6 +47,12 @@ impl<T, A> AscBuf<T, A> {
     }
 }
 
+impl<T, A> AsRef<[T]> for AscBuf<T, A> {
+    fn as_ref(&self) -> &[T] {
+        self.as_slice()
+    }
+}
+
 impl<T, A> Debug for AscBuf<T, A>
 where
     T: Debug,
@@ -50,17 +62,24 @@ where
     }
 }
 
+impl<T, A> ToOwned for AscBuf<T, A> {
+    type Owned = AscBuffer<T, A>;
+
+    fn to_owned(&self) -> Self::Owned {
+        AscBuffer::new(self)
+    }
+}
+
 /// An owned AssemblyScript dynamically sized buffer with elements of type `T`
 /// and aligned to `Alignment`.
-#[repr(transparent)]
 pub struct AscBuffer<T, Alignment = T> {
     _type: PhantomData<T>,
-    inner: Inner<[Alignment]>,
+    inner: Box<Inner<[Alignment]>>,
 }
 
 impl<T, A> AscBuffer<T, A> {
     /// Creates a new AssemblyScript buffer from the specified slice.
-    pub fn new(slice: impl AsRef<[T]>) -> Box<Self> {
+    pub fn new(slice: impl AsRef<[T]>) -> Self {
         let slice = slice.as_ref();
 
         // SAFETY: The allocated buffer is guaranteed to be completely
@@ -90,6 +109,12 @@ impl<T, A> AscBuffer<T, A> {
     /// Returns an FFI-safe pointer to an AssemblyScript buffer.
     pub fn as_buf_ptr(&self) -> *const AscBuf<T, A> {
         self.as_buf() as *const _
+    }
+}
+
+impl<T, A> Borrow<AscBuf<T, A>> for AscBuffer<T, A> {
+    fn borrow(&self) -> &AscBuf<T, A> {
+        self.as_buf()
     }
 }
 
@@ -134,19 +159,24 @@ struct DstRef {
 ///
 /// This method returns an *uninitialized* AssemblyScript buffer. It is
 /// undefined behaviour to use if without proper initialization.
-unsafe fn alloc_buffer<T, A>(len: usize) -> Box<AscBuffer<T, A>> {
+unsafe fn alloc_buffer<T, A>(len: usize) -> AscBuffer<T, A> {
     let layout = buffer_layout::<T, A>(len)
         .expect("attempted to allocate a buffer that is larger than the address space.");
 
     // NOTE: Rust only has partial DST support, so we need to use some unsafe
     // magic to create a fat `Box` for a DST since there is currently no stable
     // safe way to create one otherwise.
-    mem::transmute(DstRef {
+    let inner = mem::transmute(DstRef {
         ptr: alloc::alloc(layout),
         // NOTE: Guaranteed not to overflow, or else creating the layout would
         // have errored.
         len: ceil_div(len * mem::size_of::<T>(), mem::size_of::<A>()),
-    })
+    });
+
+    AscBuffer {
+        _type: PhantomData,
+        inner,
+    }
 }
 
 /// Ceiling integer usize division.
@@ -161,7 +191,7 @@ mod tests {
     #[test]
     fn buffer_layout_matches_type() {
         let buffer = AscBuffer::<u8, u64>::new([1u8]);
-        let layout = Layout::for_value(&*buffer);
+        let layout = Layout::for_value(&*buffer.inner);
         assert_eq!(layout, buffer_layout::<u8, u64>(1).unwrap());
     }
 
@@ -227,7 +257,10 @@ mod tests {
         };
 
         let empty_buffer = AscBuffer::<u8, u64>::new([]);
-        assert_eq!(Layout::for_value(&*empty_buffer), Layout::for_value(&buf));
+        assert_eq!(
+            Layout::for_value(&*empty_buffer.inner),
+            Layout::for_value(&buf)
+        );
 
         let buffer = AscBuffer::<u8, u64>::new([0]);
         assert_eq!(

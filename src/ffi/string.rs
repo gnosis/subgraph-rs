@@ -19,7 +19,6 @@ pub struct AscStr {
 
 impl AscStr {
     /// Converts the AssemblyScript string into a Rust `String`.
-    #[allow(unused)] // TODO(nlordell): Remove once it is used.
     pub fn to_string(&self) -> Result<String, FromUtf16Error> {
         String::from_utf16(&self.inner.as_slice())
     }
@@ -39,7 +38,7 @@ impl Debug for AscStr {
 
 /// An AssemblyScript string.
 pub struct AscString {
-    inner: Box<AscBuffer<u16>>,
+    inner: AscBuffer<u16>,
 }
 
 impl AscString {
@@ -54,7 +53,7 @@ impl AscString {
         };
         let inner = AscBuffer::new(&code_points);
 
-        AscString { inner }
+        Self { inner }
     }
 
     /// Returns a reference to a borrowed AssemblyScript string.
@@ -93,7 +92,7 @@ mod tests {
     #[test]
     fn string_layout() {
         let string = AscString::new("0123456");
-        assert_eq!(string.inner.as_slice().len(), 7);
+        assert_eq!(string.inner.len(), 7);
         assert_eq!(
             Layout::for_value(&*string.inner),
             Layout::new::<(usize, [u16; 7])>().pad_to_align(),
