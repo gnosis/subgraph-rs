@@ -3,7 +3,7 @@ name = "deep-thought"
 version = "1.0.0"
 authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2018"
-description = "Sample subgraph mappings written in Rust 🦀"
+description = "Sample subgraph mapping written in Rust 🦀"
 license = "MIT OR Apache-2.0"
 publish = false
 
@@ -11,4 +11,4 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-subgraph = { path = "../.." }
+subgraph = { path = "../../subgraph" }

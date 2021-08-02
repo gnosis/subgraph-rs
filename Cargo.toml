@@ -1,16 +1,6 @@
-[package]
-name = "subgraph"
-version = "0.1.0"
-authors = ["Gnosis developers <developers@gnosis.io>"]
-edition = "2018"
-description = "Write subgraph mappings in Rust 🦀"
-license = "MIT OR Apache-2.0"
-
 [workspace]
-members = ["samples/*"]
-
-[dependencies]
-log = "0.4.11"
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-num = "0.3.0"
+members = [
+    "cargo-subgraph",
+    "samples/*",
+    "subgraph",
+]

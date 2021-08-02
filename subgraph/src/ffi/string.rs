@@ -20,13 +20,13 @@ pub struct AscStr {
 impl AscStr {
     /// Converts the AssemblyScript string into a Rust `String`.
     pub fn to_string(&self) -> Result<String, FromUtf16Error> {
-        String::from_utf16(&self.inner.as_slice())
+        String::from_utf16(self.inner.as_slice())
     }
 
     /// Converts the AssemblyScript string into a Rust `String`, replacing
     /// invalid data with the replacement character (`U+FFFD`).
     pub fn to_string_lossy(&self) -> String {
-        String::from_utf16_lossy(&self.inner.as_slice())
+        String::from_utf16_lossy(self.inner.as_slice())
     }
 }
 

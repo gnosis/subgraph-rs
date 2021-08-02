@@ -1,0 +1,9 @@
+[package]
+name = "cargo-subgraph"
+version = "0.1.0"
+authors = ["Gnosis developers <developers@gnosis.io>"]
+edition = "2018"
+description = "Work with subgraphs written in Rust 🦀"
+license = "MIT OR Apache-2.0"
+
+[dependencies]

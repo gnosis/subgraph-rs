@@ -1,7 +1,7 @@
 //! AssemblyScript dynamically sized buffer implementation.
 
 use std::{
-    alloc::{self, Layout, LayoutErr},
+    alloc::{self, Layout, LayoutError},
     borrow::{Borrow, ToOwned},
     fmt::{self, Debug, Formatter},
     marker::PhantomData,
@@ -137,7 +137,7 @@ where
 
 /// Returns the memory layout for an AssemblyScript buffer with the specified
 /// dynamic length.
-fn buffer_layout<T, A>(len: usize) -> Result<Layout, LayoutErr> {
+fn buffer_layout<T, A>(len: usize) -> Result<Layout, LayoutError> {
     let (layout, _) = Layout::new::<AscBuf<T, A>>().extend(Layout::array::<T>(len)?)?;
     // NOTE: Pad to alignment for C ABI compatibility. See
     // <https://doc.rust-lang.org/std/alloc/struct.Layout.html#method.extend>
