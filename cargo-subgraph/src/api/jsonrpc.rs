@@ -1,15 +1,11 @@
 //! Extremely simple JSONRPC-over-HTTP client implementation.
 
-#![allow(dead_code)]
-
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use curl::easy::{Easy, List};
-use serde::{
-    de::DeserializeOwned,
-    ser::{Serialize, Serializer},
-};
-use serde_derive::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, ser::Serializer, Deserialize, Serialize};
 use std::{
+    error,
+    fmt::{self, Display, Formatter},
     io::Read,
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -23,11 +19,16 @@ pub struct Client {
 
 impl Client {
     /// Creates a new client with the specified URL.
-    pub fn new(url: impl AsRef<str>) -> Result<Self> {
+    pub fn new(url: &str) -> Result<Self> {
         Ok(Self {
             id: AtomicU64::new(0),
-            url: Url::parse(url.as_ref())?,
+            url: Url::parse(url)?,
         })
+    }
+
+    /// Returns the client's URL.
+    pub fn url(&self) -> &Url {
+        &self.url
     }
 
     /// Executes the specified JSONRPC request, returning a result.
@@ -37,21 +38,21 @@ impl Client {
         R: DeserializeOwned,
     {
         let request = serde_json::to_string(&Request {
-            version: JsonRpcV2,
-            // We don't really care about the ordering, just uniqueness.
-            id: self.id.fetch_add(1, Ordering::Relaxed),
+            jsonrpc: JsonRpcV2,
             method,
             params,
+            // We don't really care about the ordering, just uniqueness.
+            id: self.id.fetch_add(1, Ordering::Relaxed),
         })?;
 
         let response = self.execute_raw(request)?;
         let response =
-            serde_json::from_str::<Response<R>>(&response).map_err(
-                |err| match serde_json::from_str::<Error>(&response) {
-                    Ok(err) => anyhow!(err.error.message),
+            serde_json::from_str::<Response<R>>(&response).map_err(|err| -> anyhow::Error {
+                match serde_json::from_str::<ErrorResponse>(&response) {
+                    Ok(response) => response.error.into(),
                     Err(_) => err.into(),
-                },
-            )?;
+                }
+            })?;
 
         Ok(response.result)
     }
@@ -65,7 +66,7 @@ impl Client {
         handle.post(true)?;
         handle.http_headers({
             let mut list = List::new();
-            list.append("Content-Type: application/json")?;
+            list.append("Content-Type: application/json; charset=utf-8")?;
             list
         })?;
         {
@@ -98,12 +99,24 @@ impl Serialize for JsonRpcV2 {
     }
 }
 
+mod id {
+    use serde::ser::Serializer;
+
+    pub fn serialize<S>(id: &u64, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&id.to_string())
+    }
+}
+
 #[derive(Serialize)]
 struct Request<'m, P> {
-    version: JsonRpcV2,
-    id: u64,
+    jsonrpc: JsonRpcV2,
     method: &'m str,
     params: P,
+    #[serde(with = "id")]
+    id: u64,
 }
 
 #[derive(Deserialize)]
@@ -112,19 +125,28 @@ struct Response<R> {
 }
 
 #[derive(Deserialize)]
-struct Error {
-    error: ErrorData,
+struct ErrorResponse {
+    error: Error,
 }
 
-#[derive(Deserialize)]
-struct ErrorData {
+#[derive(Debug, Deserialize)]
+struct Error {
     code: i64,
     message: String,
 }
 
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl error::Error for Error {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     use std::env;
 
     fn parse_eth(amount: &str) -> f64 {
@@ -133,11 +155,62 @@ mod tests {
     }
 
     #[test]
+    fn serialize_request() {
+        assert_eq!(
+            serde_json::to_value(Request {
+                jsonrpc: JsonRpcV2,
+                method: "subtract",
+                params: [42, 23],
+                id: 1,
+            })
+            .unwrap(),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "subtract",
+                "params": [42, 23],
+                "id": "1",
+            }),
+        );
+    }
+
+    #[test]
+    fn deserialize_response() {
+        assert_eq!(
+            serde_json::from_value::<Response<i32>>(json!({
+                "jsonrpc": "2.0",
+                "result": 19,
+                "id": 1,
+            }))
+            .unwrap()
+            .result,
+            19,
+        );
+    }
+
+    #[test]
+    fn deserialize_response_error() {
+        let error = serde_json::from_value::<ErrorResponse>(json!({
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32000,
+                "message": "error",
+                "data": "",
+            },
+            "id": "1",
+        }))
+        .unwrap()
+        .error;
+
+        assert_eq!(error.code, -32000);
+        assert_eq!(error.message, "error");
+    }
+
+    #[test]
     #[ignore]
     fn eth_rpc() {
         let url =
             env::var("ETHEREUM_NODE_URL").expect("missing ETHEREUM_NODE_URL environment variable");
-        let client = Client::new(url).unwrap();
+        let client = Client::new(&url).unwrap();
 
         let balance = client
             .execute::<_, String>(

@@ -5,7 +5,7 @@ metadata:
 spec:
   containers:
     - name: graph-node
-      image: docker.io/graphprotocol/graph-node:v0.18.0
+      image: docker.io/graphprotocol/graph-node:v0.23.1
       ports:
         - hostPort: 8000
         - hostPort: 8001
@@ -14,29 +14,29 @@ spec:
         - hostPort: 8040
       env:
         - name: postgres_host
-          value: localhost:5432
+          value: localhost
         - name: postgres_user
-          value: graph-node
-        - name: postgres_db
           value: graph-node
         - name: postgres_pass
           value: let-me-in
+        - name: postgres_db
+          value: graph-node
         - name: ipfs
           value: localhost:5001
         - name: ethereum
           value: mainnet:http://localhost:8545
-        - name: RUST_LOG
+        - name: GRAPH_LOG
           value: info
     - name: postgres
-      image: docker.io/library/postgres:12.3
+      image: docker.io/library/postgres:13.3
       args: ["postgres", "-cshared_preload_libraries=pg_stat_statements"]
       ports:
         - hostPort: 5432
       env:
-        - name: POSTGRES_PASSWORD
-          value: let-me-in
         - name: POSTGRES_USER
           value: graph-node
+        - name: POSTGRES_PASSWORD
+          value: let-me-in
         - name: POSTGRES_DB
           value: graph-node
     - name: go-ipfs
@@ -48,7 +48,7 @@ spec:
         - hostIP: 127.0.0.1
           hostPort: 8080
     - name: ganache-cli
-      image: docker.io/trufflesuite/ganache-cli:v6.9.1
+      image: docker.io/trufflesuite/ganache-cli:v6.12.2
       args: ["--deterministic"]
       ports:
         - hostPort: 8545
