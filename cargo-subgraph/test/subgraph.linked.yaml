@@ -1,6 +1,6 @@
 specVersion: 0.0.2
 description: My Subgraph
-repository: https://github.com/my/subgraph
+repository: "https://github.com/my/subgraph"
 schema:
   file:
     /: /ipfs/QmWbSVML8EJNvUBsp8cV8RCWhDVMV4eQavAoqEF7oYTELk

@@ -9,7 +9,11 @@
 
 #![allow(dead_code)]
 
-use crate::api::ipfs::CidV0;
+use crate::{
+    api::ipfs::CidV0,
+    linker::{Linker, Resource, Source},
+    mappings::Mappings,
+};
 use anyhow::{Context as _, Result};
 use serde::{
     ser::{SerializeMap, Serializer},
@@ -47,14 +51,43 @@ impl Manifest {
         })
     }
 
-    /// Sets all empty mapping files to the specified WASM module path.
-    ///
-    /// Note that WASM modules paths for mappings where they are specified are
-    /// left untouched.
-    pub fn set_mapping_path(&mut self, path: PathBuf) {
-        for data_source in &mut self.files.data_sources {
-            data_source.mapping.file.get_or_insert(path.clone());
+    /// Links a manifest, replacing all paths with IPFS locations and returning
+    /// the IPFS CID v0 hash of the uploaded manifest.
+    pub fn link(self, linker: Linker, mappings: Mappings) -> Result<CidV0> {
+        let Self {
+            root,
+            mut document,
+            files,
+        } = self;
+        let linker = LinkAdapter { root, linker };
+
+        // Use unchecked YAML value access here, as we already deserialized it
+        // into `Files` so we know its valid.
+
+        document["schema"]["file"] = linker.file(&files.schema.file)?;
+        for (i, data_source) in files.data_sources.iter().enumerate() {
+            let d_data_source = &mut document["dataSources"][i];
+            d_data_source["mapping"]["file"] = linker.link(
+                mappings.resolve(
+                    data_source
+                        .mapping
+                        .file
+                        .as_deref()
+                        .or_else(|| mappings.default_mapping())
+                        .context(
+                            "More than one possible mapping Wasm modules. \
+                             Try manually specifying a mapping file.",
+                        )?,
+                )?,
+            )?;
+
+            for (i, abi) in data_source.mapping.abis.iter().enumerate() {
+                let d_abi = &mut d_data_source["mapping"]["abis"][i];
+                d_abi["file"] = linker.file(&abi.file)?;
+            }
         }
+
+        linker.finish(&document)
     }
 }
 
@@ -99,8 +132,36 @@ impl Serialize for Link {
     }
 }
 
+struct LinkAdapter {
+    root: PathBuf,
+    linker: Linker,
+}
+
+impl LinkAdapter {
+    fn link<S>(&self, resource: Resource<S>) -> Result<Value>
+    where
+        S: Source,
+    {
+        Ok(serde_yaml::to_value(Link(self.linker.link(resource)?))?)
+    }
+
+    fn file(&self, path: &Path) -> Result<Value> {
+        self.link(Resource::file(&self.root, path))
+    }
+
+    fn finish(&self, document: &Value) -> Result<CidV0> {
+        let bytes = serde_yaml::to_vec(document)?;
+        self.linker.link(Resource::buffer(
+            bytes.strip_prefix(b"---\n").unwrap_or(&bytes),
+            Path::new("subgraph.yaml"),
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
 
     #[test]
@@ -118,6 +179,32 @@ mod tests {
         assert_eq!(
             manifest.files.data_sources[0].mapping.file.as_deref(),
             Some(Path::new("mapping.wasm")),
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn link_manifest() {
+        let manifest =
+            Manifest::read(&Path::new(env!("CARGO_MANIFEST_DIR")).join("test/subgraph.yaml"))
+                .unwrap();
+
+        let (outdir, linker) = Linker::test();
+        let mappings = Mappings::from_artifacts(vec![
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("test/mapping.wasm")
+        ])
+        .unwrap();
+
+        manifest.link(linker, mappings).unwrap();
+        let linked = fs::read_to_string(outdir.path().join("subgraph.yaml")).unwrap();
+
+        println!("Linked subgraph:\n{}", linked);
+        assert_eq!(
+            linked,
+            fs::read_to_string(
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("test/subgraph.linked.yaml")
+            )
+            .unwrap(),
         );
     }
 }

@@ -5,6 +5,19 @@ use serde::Deserialize;
 use serde_json::{Deserializer, Value};
 use std::{env, ffi::OsStr, path::PathBuf, process::Command};
 
+/// Returns the name of the grate in the current working directory.
+pub fn crate_name() -> Result<String> {
+    let output = cargo(|command| command.arg("read-manifest"))?;
+    let manifest = serde_json::from_slice::<Manifest>(&output)?;
+
+    Ok(manifest.name)
+}
+
+#[derive(Deserialize)]
+struct Manifest {
+    name: String,
+}
+
 /// Retrieves the root of the crate in the current working directory.
 /// directory.
 pub fn root() -> Result<PathBuf> {
@@ -14,12 +27,22 @@ pub fn root() -> Result<PathBuf> {
     Ok(project.root)
 }
 
+#[derive(Deserialize)]
+struct ProjectLocation {
+    root: PathBuf,
+}
+
 /// Returns the target directory for the crate in the current working directory.
 pub fn target_directory() -> Result<PathBuf> {
     let output = cargo(|command| command.args(&["metadata", "--format-version", "1"]))?;
     let metadata = serde_json::from_slice::<Metadata>(&output)?;
 
     Ok(metadata.target_directory)
+}
+
+#[derive(Deserialize)]
+struct Metadata {
+    target_directory: PathBuf,
 }
 
 /// Builds a project as a Wasm module.
@@ -52,16 +75,6 @@ pub fn build_wasm() -> Result<Vec<PathBuf>> {
         })?;
 
     Ok(modules)
-}
-
-#[derive(Deserialize)]
-struct ProjectLocation {
-    root: PathBuf,
-}
-
-#[derive(Deserialize)]
-struct Metadata {
-    target_directory: PathBuf,
 }
 
 #[derive(Deserialize)]
@@ -122,10 +135,11 @@ mod tests {
     #[test]
     fn sample_paths() {
         for_each_sample(
-            || Ok((root()?, target_directory()?)),
-            |(root, target)| {
-                println!("Found sample root '{}'", root.display());
-                println!("           target '{}'", target.display());
+            || Ok((crate_name()?, root()?, target_directory()?)),
+            |(name, root, target)| {
+                println!("Found sample '{}'", name);
+                println!("        root '{}'", root.display());
+                println!("      target '{}'", target.display());
             },
         );
     }
@@ -134,13 +148,10 @@ mod tests {
     #[ignore]
     fn sample_builds() {
         println!("Sample Wasm build artifacts:");
-        for_each_sample(
-            build_wasm,
-            |modules| {
-                for module in modules {
-                    println!(" - '{}'", module.display());
-                }
-            },
-        );
+        for_each_sample(build_wasm, |modules| {
+            for module in modules {
+                println!(" - '{}'", module.display());
+            }
+        });
     }
 }

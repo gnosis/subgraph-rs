@@ -188,7 +188,7 @@ mod tests {
                 &Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("test")
                     .join(name.as_ref()),
-                name.as_ref(),
+                None,
             )
             .unwrap()
     }

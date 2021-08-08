@@ -102,7 +102,10 @@ impl Client {
     }
 
     /// Adds and pins a file to IPFS returning its CID.
-    pub fn add_and_pin(&self, file: &Path, filename: &Path) -> Result<CidV0> {
+    pub fn add_and_pin(&self, file: &Path, filename: Option<&Path>) -> Result<CidV0> {
+        let filename = filename.unwrap_or(Path::new(
+            file.file_name().context("invalid path to upload")?,
+        ));
         let added = self.add(file, filename)?;
         let cid = added
             .into_iter()
@@ -230,7 +233,7 @@ mod tests {
         let cid = client
             .add_and_pin(
                 &Path::new(env!("CARGO_MANIFEST_DIR")).join("test/foo.txt"),
-                Path::new("foo.txt"),
+                Some(Path::new("test/foo.txt")),
             )
             .unwrap();
 
