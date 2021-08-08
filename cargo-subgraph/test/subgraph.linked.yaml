@@ -1,0 +1,24 @@
+specVersion: 0.0.2
+description: My Subgraph
+repository: https://github.com/my/subgraph
+schema:
+  file:
+    /: /ipfs/{schema}
+dataSources:
+  - kind: ethereum/contract
+    network: mainnet
+    name: MyContract
+    source:
+      address: "0x0000000000000000000000000000000000000000"
+      abi: MyContract
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.4
+      language: wasm/assemblyscript
+      entities: []
+      abis:
+        - name: MyContract
+          file:
+            /: /ipfs/{abi}
+      file:
+        /: /ipfs/{mapping}
