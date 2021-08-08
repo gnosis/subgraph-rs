@@ -114,6 +114,7 @@ mod tests {
     use super::*;
     use crate::api::ipfs;
     use serde_json::json;
+    use std::path::Path;
 
     #[test]
     fn serialize_create() {
@@ -181,62 +182,27 @@ mod tests {
         println!("Created my/subgraph at 0x{}", subgraph.id);
     }
 
+    fn add_and_pin_test_file(name: impl AsRef<Path>) -> CidV0 {
+        ipfs::Client::new("http://localhost:5001")
+            .unwrap()
+            .add_and_pin(
+                &Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("test")
+                    .join(name.as_ref()),
+                name.as_ref(),
+            )
+            .unwrap()
+    }
+
     #[test]
     #[ignore]
     fn deploy_subgraph() {
         let client = Client::new("http://localhost:8020").unwrap();
-        let ipfs = ipfs::Client::new("http://localhost:5001").unwrap();
-        let schema = ipfs
-            .add_and_pin(
-                "schema.graphql",
-                br#"
-type Empty @entity {
-    id: ID!
-}
-                "#,
-            )
-            .unwrap();
-        let abi = ipfs.add_and_pin("MyContract.abi", b"[]").unwrap();
-        let mapping = ipfs
-            .add_and_pin("MyContract.wasm", b"\0asm\x01\0\0\0")
-            .unwrap();
-        let manifest = ipfs
-            .add_and_pin(
-                "subgraph.yaml",
-                format!(
-                    r#"
-specVersion: 0.0.2
-description: My Subgraph
-repository: https://github.com/my/subgraph
-schema:
-  file:
-    /: /ipfs/{schema}
-dataSources:
-  - kind: ethereum/contract
-    network: mainnet
-    name: MyContract
-    source:
-      address: "0x0000000000000000000000000000000000000000"
-      abi: MyContract
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.4
-      language: wasm/assemblyscript
-      entities: []
-      abis:
-        - name: MyContract
-          file:
-            /: /ipfs/{abi}
-      file:
-        /: /ipfs/{mapping}
-                    "#,
-                    schema = schema,
-                    abi = abi,
-                    mapping = mapping,
-                )
-                .as_bytes(),
-            )
-            .unwrap();
+
+        add_and_pin_test_file("schema.graphql");
+        add_and_pin_test_file("MyContract.abi");
+        add_and_pin_test_file("mapping.wasm");
+        let manifest = add_and_pin_test_file("subgraph.linked.yaml");
         let routes = client.deploy("my/subgraph", manifest).unwrap();
 
         println!("Deployed my/subgraph at {}", routes.playground);

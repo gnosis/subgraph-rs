@@ -3,7 +3,7 @@ description: My Subgraph
 repository: https://github.com/my/subgraph
 schema:
   file:
-    /: /ipfs/{schema}
+    /: /ipfs/QmWbSVML8EJNvUBsp8cV8RCWhDVMV4eQavAoqEF7oYTELk
 dataSources:
   - kind: ethereum/contract
     network: mainnet
@@ -19,6 +19,6 @@ dataSources:
       abis:
         - name: MyContract
           file:
-            /: /ipfs/{abi}
+            /: /ipfs/QmV5gLUojYynnLEZntUXwyDcfXvw9qmKEp2NTRARp6tLqh
       file:
-        /: /ipfs/{mapping}
+        /: /ipfs/QmbG6yVwujNGjWsvPEvmW6jJRBKxBEEm3tqKSSXUc6fvVJ

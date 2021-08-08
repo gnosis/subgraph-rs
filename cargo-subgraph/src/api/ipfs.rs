@@ -9,6 +9,7 @@ use serde::{
 };
 use std::{
     fmt::{self, Debug, Display, Formatter},
+    path::{Path, PathBuf},
     str,
 };
 use url::Url;
@@ -103,8 +104,8 @@ impl Client {
     }
 
     /// Adds and pins a file to IPFS returning its CID.
-    pub fn add_and_pin(&self, filename: &str, contents: &[u8]) -> Result<CidV0> {
-        let added = self.add(filename, contents)?;
+    pub fn add_and_pin(&self, file: &Path, filename: &Path) -> Result<CidV0> {
+        let added = self.add(file, filename)?;
         let cid = added
             .into_iter()
             .find(|file| file.name == filename)
@@ -120,7 +121,7 @@ impl Client {
     }
 
     /// Adds a new file to IPFS.
-    pub fn add(&self, filename: &str, contents: &[u8]) -> Result<Vec<Add>> {
+    pub fn add(&self, file: &Path, filename: &Path) -> Result<Vec<Add>> {
         let mut buffer = Vec::new();
 
         let mut handle = Easy::new();
@@ -128,7 +129,8 @@ impl Client {
         handle.httppost({
             let mut form = Form::new();
             form.part("file")
-                .buffer(filename, contents.to_owned())
+                .file(file)
+                .filename(filename)
                 .content_type("application/octet-stream")
                 .add()?;
             form
@@ -177,7 +179,7 @@ impl Client {
 #[derive(Deserialize)]
 pub struct Add {
     #[serde(rename = "Name")]
-    pub name: String,
+    pub name: PathBuf,
     #[serde(rename = "Hash")]
     pub hash: CidV0,
 }
@@ -227,7 +229,12 @@ mod tests {
     #[ignore]
     fn add_and_pin() {
         let client = Client::new("http://localhost:5001").unwrap();
-        let cid = client.add_and_pin("foo.txt", b"bar").unwrap();
+        let cid = client
+            .add_and_pin(
+                &Path::new(env!("CARGO_MANIFEST_DIR")).join("test/foo.txt"),
+                Path::new("foo.txt"),
+            )
+            .unwrap();
 
         println!("Added and pinned {}", cid);
     }
