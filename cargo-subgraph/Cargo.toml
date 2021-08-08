@@ -3,7 +3,7 @@ name = "cargo-subgraph"
 version = "0.1.0"
 authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2018"
-description = "Work with subgraphs written in Rust 🦀"
+description = "Manage subgraphs written in Rust 🦀"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
@@ -13,4 +13,5 @@ curl = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.8"
+structopt = "0.3"
 url = { version = "2", features = ["serde"] }

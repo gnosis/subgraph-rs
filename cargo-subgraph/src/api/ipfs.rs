@@ -93,10 +93,8 @@ pub struct Client {
 
 impl Client {
     /// Creates a new client with the specified base URL.
-    pub fn new(base_url: &str) -> Result<Self> {
-        Ok(Self {
-            base_url: Url::parse(base_url)?,
-        })
+    pub fn new(base_url: Url) -> Self {
+        Self { base_url }
     }
 
     fn url(&self, path: &str) -> Result<Url> {
@@ -228,7 +226,7 @@ mod tests {
     #[test]
     #[ignore]
     fn add_and_pin() {
-        let client = Client::new("http://localhost:5001").unwrap();
+        let client = Client::new(Url::parse("http://localhost:5001").unwrap());
         let cid = client
             .add_and_pin(
                 &Path::new(env!("CARGO_MANIFEST_DIR")).join("test/foo.txt"),

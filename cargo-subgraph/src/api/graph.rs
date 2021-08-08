@@ -11,10 +11,10 @@ pub struct Client {
 
 impl Client {
     /// Creates a Graph service client with the specified URL.
-    pub fn new(url: &str) -> Result<Self> {
-        Ok(Self {
-            inner: jsonrpc::Client::new(url)?,
-        })
+    pub fn new(url: Url) -> Self {
+        Self {
+            inner: jsonrpc::Client::new(url),
+        }
     }
 
     /// Creates a new subgraph with the specified name.
@@ -176,15 +176,14 @@ mod tests {
     #[test]
     #[ignore]
     fn create_subgraph() {
-        let client = Client::new("http://localhost:8020").unwrap();
+        let client = Client::new(Url::parse("http://localhost:8020").unwrap());
         let subgraph = client.create("my/subgraph").unwrap();
 
         println!("Created my/subgraph at 0x{}", subgraph.id);
     }
 
     fn add_and_pin_test_file(name: impl AsRef<Path>) -> CidV0 {
-        ipfs::Client::new("http://localhost:5001")
-            .unwrap()
+        ipfs::Client::new(Url::parse("http://localhost:5001").unwrap())
             .add_and_pin(
                 &Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("test")
@@ -197,7 +196,7 @@ mod tests {
     #[test]
     #[ignore]
     fn deploy_subgraph() {
-        let client = Client::new("http://localhost:8020").unwrap();
+        let client = Client::new(Url::parse("http://localhost:8020").unwrap());
 
         add_and_pin_test_file("schema.graphql");
         add_and_pin_test_file("MyContract.abi");

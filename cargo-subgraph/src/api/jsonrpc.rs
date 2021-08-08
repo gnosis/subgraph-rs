@@ -13,17 +13,17 @@ use url::Url;
 
 /// A JSONRPC-over-HTTP client
 pub struct Client {
-    id: AtomicU64,
     url: Url,
+    id: AtomicU64,
 }
 
 impl Client {
     /// Creates a new client with the specified URL.
-    pub fn new(url: &str) -> Result<Self> {
-        Ok(Self {
+    pub fn new(url: Url) -> Self {
+        Self {
+            url,
             id: AtomicU64::new(0),
-            url: Url::parse(url)?,
-        })
+        }
     }
 
     /// Returns the client's URL.
@@ -210,7 +210,7 @@ mod tests {
     fn eth_rpc() {
         let url =
             env::var("ETHEREUM_NODE_URL").expect("missing ETHEREUM_NODE_URL environment variable");
-        let client = Client::new(&url).unwrap();
+        let client = Client::new(Url::parse(&url).unwrap());
 
         let balance = client
             .execute::<_, String>(

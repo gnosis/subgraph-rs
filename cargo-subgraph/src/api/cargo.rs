@@ -135,7 +135,7 @@ mod tests {
     fn sample_builds() {
         println!("Sample Wasm build artifacts:");
         for_each_sample(
-            || build_wasm(),
+            build_wasm,
             |modules| {
                 for module in modules {
                     println!(" - '{}'", module.display());

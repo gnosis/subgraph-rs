@@ -1,6 +1,10 @@
 mod api;
+mod cmd;
 mod manifest;
 
 fn main() {
-    println!("Hello, world!");
+    if let Err(err) = cmd::run() {
+        eprintln!("ERROR: {}", err);
+        std::process::exit(1);
+    }
 }
