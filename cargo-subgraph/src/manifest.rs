@@ -7,8 +7,6 @@
 //! new properties were added, they would simply be ignored here and included
 //! in the final manifest.
 
-#![allow(dead_code)]
-
 use crate::{
     api::ipfs::CidV0,
     linker::{Linker, Resource, Source},
@@ -75,7 +73,7 @@ impl Manifest {
                         .as_deref()
                         .or_else(|| mappings.default_mapping())
                         .context(
-                            "More than one possible mapping Wasm modules. \
+                            "more than one possible mapping Wasm modules. \
                              Try manually specifying a mapping file.",
                         )?,
                 )?,

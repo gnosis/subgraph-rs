@@ -1,8 +1,6 @@
 //! Copy subgraph files to an output directly and upload to IPFS so that it can
 //! be used in a subgraph deployment.
 
-#![allow(dead_code)]
-
 use crate::api::{
     cargo,
     ipfs::{CidV0, Client},
@@ -27,6 +25,7 @@ impl Linker {
         let outdir = cargo::target_directory()?
             .join("subgraph")
             .join(cargo::crate_name()?);
+        fs::create_dir_all(&outdir)?;
 
         Ok(Self { ipfs, outdir })
     }

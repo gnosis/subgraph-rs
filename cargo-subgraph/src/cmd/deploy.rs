@@ -1,8 +1,12 @@
 //! Subcommand used for creating a new subgraph.
 
-#![allow(dead_code)]
-
-use anyhow::Result;
+use crate::{
+    api::{cargo, graph},
+    linker::Linker,
+    manifest::Manifest,
+    mappings::Mappings,
+};
+use anyhow::{Context as _, Result};
 use std::path::PathBuf;
 use structopt::StructOpt;
 use url::Url;
@@ -22,6 +26,23 @@ pub struct Options {
     ipfs_node: Url,
 }
 
-pub fn run(_options: Options) -> Result<()> {
+pub fn run(options: Options) -> Result<()> {
+    let client = graph::Client::new(options.graph_node);
+    let manifest = Manifest::read(
+        &options
+            .subgraph_manifest_path
+            .map(Result::<_>::Ok)
+            .unwrap_or_else(|| {
+                Ok(cargo::root()?
+                    .parent()
+                    .context("Cargo manifest has no parent directory")?
+                    .join("subgraph.yaml"))
+            })?,
+    )?;
+    client.deploy(
+        &options.subgraph_name,
+        manifest.link(Linker::new(options.ipfs_node)?, Mappings::compile()?)?,
+    )?;
+
     Ok(())
 }

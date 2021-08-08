@@ -24,4 +24,4 @@ dataSources:
           handler: greatOnTurning
         - event: DayOfTheAnswer(address,uint256)
           handler: dayOfTheAnswer
-      file: DeepThought/DeepThought.wasm
+      file: deep_thought.wasm

@@ -89,12 +89,6 @@ struct CompilerArtifact {
     filenames: Vec<PathBuf>,
 }
 
-#[derive(Deserialize)]
-struct Resolve {
-    #[serde(default)]
-    root: String,
-}
-
 fn cargo(config: impl FnOnce(&mut Command) -> &mut Command) -> Result<Vec<u8>> {
     let mut cargo = Command::new(env::var("CARGO").as_deref().unwrap_or("cargo"));
     let output = config(&mut cargo).output()?;

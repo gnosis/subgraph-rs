@@ -1,7 +1,5 @@
 //! Compile and post-process Wasm mapping modules from a crate.
 
-#![allow(dead_code)]
-
 use crate::{api::cargo, linker::DiskResource};
 use anyhow::{anyhow, Context as _, Result};
 use std::{
@@ -58,7 +56,7 @@ impl Mappings {
             source: self
                 .mappings
                 .get(name)
-                .context("")?
+                .with_context(|| anyhow!("cannot find mapping module '{}'", name.display()))?
                 .as_deref()
                 .map_err(|_| anyhow!("duplicate module '{}'", name.display()))?
                 .to_owned(),
