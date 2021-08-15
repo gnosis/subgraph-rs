@@ -1,7 +1,7 @@
 //! Compile and post-process Wasm mapping modules from a crate.
 
 use crate::{api::cargo, linker::DiskResource};
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{anyhow, bail, Context as _, Result};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -37,11 +37,7 @@ impl Mappings {
         Ok(Self { mappings })
     }
 
-    /// Returns the default mapping name, if there is one.
-    ///
-    /// A project has a default mapping if compiling the subgraph's mapping
-    /// crate produces exactly one Wasm module.
-    pub fn default_mapping(&self) -> Option<&Path> {
+    fn default_mapping(&self) -> Option<&Path> {
         if self.mappings.len() != 1 {
             return None;
         }
@@ -51,14 +47,30 @@ impl Mappings {
     }
 
     /// Resolves a mapping module by name into a linkable resource.
-    pub fn resolve<'a>(&self, name: &'a Path) -> Result<DiskResource<'a>> {
+    pub fn resolve<'a>(&'a self, name: Option<&'a Path>) -> Result<DiskResource<'a>> {
+        if let Some(name) = name.filter(|name| name.exists()) {
+            // The subgraph is asking for a vendored Wasm file. Nothing more to do!
+            return Ok(DiskResource {
+                source: name.canonicalize()?,
+                name,
+            });
+        }
+
+        let name = match name.or_else(|| self.default_mapping()) {
+            Some(value) => value,
+            None => bail!(
+                "more than one possible mapping Wasm modules. \
+                 Try manually specifying a mapping file.",
+            ),
+        };
+
         Ok(DiskResource {
             source: self
                 .mappings
                 .get(name)
-                .with_context(|| anyhow!("cannot find mapping module '{}'", name.display()))?
+                .with_context(|| anyhow!("cannot find mapping '{}'", name.display()))?
                 .as_deref()
-                .map_err(|_| anyhow!("duplicate module '{}'", name.display()))?
+                .map_err(|_| anyhow!("duplicate mapping '{}'", name.display()))?
                 .to_owned(),
             name,
         })

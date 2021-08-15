@@ -182,26 +182,19 @@ mod tests {
         println!("Created my/subgraph at 0x{}", subgraph.id);
     }
 
-    fn add_and_pin_test_file(name: impl AsRef<Path>) -> CidV0 {
-        ipfs::Client::new(Url::parse("http://localhost:5001").unwrap())
-            .add_and_pin(
-                &Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("test")
-                    .join(name.as_ref()),
-                None,
-            )
-            .unwrap()
-    }
-
     #[test]
     #[ignore]
     fn deploy_subgraph() {
-        let client = Client::new(Url::parse("http://localhost:8020").unwrap());
+        let testdir = Path::new(env!("CARGO_MANIFEST_DIR")).join("test");
+        let ipfs = ipfs::Client::new(Url::parse("http://localhost:5001").unwrap());
+        ipfs.add_and_pin(&testdir.join("schema.graphql")).unwrap();
+        ipfs.add_and_pin(&testdir.join("MyContract.abi")).unwrap();
+        ipfs.add_and_pin(&testdir.join("mapping.wasm")).unwrap();
+        let manifest = ipfs
+            .add_and_pin(&testdir.join("subgraph.linked.yaml"))
+            .unwrap();
 
-        add_and_pin_test_file("schema.graphql");
-        add_and_pin_test_file("MyContract.abi");
-        add_and_pin_test_file("mapping.wasm");
-        let manifest = add_and_pin_test_file("subgraph.linked.yaml");
+        let client = Client::new(Url::parse("http://localhost:8020").unwrap());
         let routes = client.deploy("my/subgraph", manifest).unwrap();
 
         println!("Deployed my/subgraph at {}", routes.playground);

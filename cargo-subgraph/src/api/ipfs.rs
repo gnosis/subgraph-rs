@@ -102,16 +102,14 @@ impl Client {
     }
 
     /// Adds and pins a file to IPFS returning its CID.
-    pub fn add_and_pin(&self, file: &Path, filename: Option<&Path>) -> Result<CidV0> {
-        let filename = filename.unwrap_or(Path::new(
-            file.file_name().context("invalid path to upload")?,
-        ));
-        let added = self.add(file, filename)?;
-        let cid = added
-            .into_iter()
-            .find(|file| file.name == filename)
-            .context("file missing from added list")?
-            .hash;
+    pub fn add_and_pin(&self, file: &Path) -> Result<CidV0> {
+        let added = self.add(file)?;
+        ensure!(
+            added.len() == 1,
+            "more than one IPFS document added for single file",
+        );
+
+        let cid = added[0].hash;
         let pinned = self.pin(cid)?;
         pinned
             .into_iter()
@@ -122,7 +120,7 @@ impl Client {
     }
 
     /// Adds a new file to IPFS.
-    pub fn add(&self, file: &Path, filename: &Path) -> Result<Vec<Add>> {
+    pub fn add(&self, file: &Path) -> Result<Vec<Add>> {
         let mut buffer = Vec::new();
 
         let mut handle = Easy::new();
@@ -131,7 +129,6 @@ impl Client {
             let mut form = Form::new();
             form.part("file")
                 .file(file)
-                .filename(filename)
                 .content_type("application/octet-stream")
                 .add()?;
             form
@@ -231,10 +228,7 @@ mod tests {
     fn add_and_pin() {
         let client = Client::new(Url::parse("http://localhost:5001").unwrap());
         let cid = client
-            .add_and_pin(
-                &Path::new(env!("CARGO_MANIFEST_DIR")).join("test/foo.txt"),
-                Some(Path::new("test/foo.txt")),
-            )
+            .add_and_pin(&Path::new(env!("CARGO_MANIFEST_DIR")).join("test/foo.txt"))
             .unwrap();
 
         println!("Added and pinned {}", cid);

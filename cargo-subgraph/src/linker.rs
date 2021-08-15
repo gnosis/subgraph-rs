@@ -55,9 +55,7 @@ impl Linker {
         fs::create_dir_all(output.parent().context("output path has no parent")?)?;
         resource.source.write_to_output(&output)?;
 
-        let hash = self.ipfs.add_and_pin(&output, Some(resource.name))?;
-
-        Ok(hash)
+        self.ipfs.add_and_pin(&output)
     }
 }
 
@@ -70,7 +68,9 @@ pub struct Resource<'a, S> {
     pub name: &'a Path,
 }
 
+/// Trait for writing a resource's data to its output location.
 pub trait Source {
+    /// Write the resource data to the specified output path.
     fn write_to_output(&self, output: &Path) -> Result<()>;
 }
 

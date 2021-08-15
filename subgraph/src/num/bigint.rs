@@ -1,10 +1,7 @@
 //! Subgraph arbitrary precision integer implementation.
 
 use crate::{ffi::array::AscArrayBuffer, sys};
-use std::{
-    fmt::{self, Debug, Display, Formatter},
-    ops::Add,
-};
+use std::fmt::{self, Debug, Display, Formatter};
 
 /// A arbitrary precision big integer. This uses the host big integer
 /// implementation through the provided import functions.
@@ -90,14 +87,6 @@ impl Display for BigInt {
         };
 
         f.pad_integral(self.signum() >= 0, "", &s)
-    }
-}
-
-impl<'a> Add for &'a BigInt {
-    type Output = BigInt;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        self.add(rhs)
     }
 }
 

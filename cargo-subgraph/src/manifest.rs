@@ -28,7 +28,7 @@ use std::{
 pub struct Manifest {
     root: PathBuf,
     document: Value,
-    files: Files<PathBuf>,
+    data: Data<PathBuf>,
 }
 
 impl Manifest {
@@ -40,12 +40,12 @@ impl Manifest {
             .context("manifest file has not parent directory")?
             .canonicalize()?;
         let document = serde_yaml::from_reader::<_, Value>(reader)?;
-        let files = serde_yaml::from_value(document.clone())?;
+        let data = serde_yaml::from_value(document.clone())?;
 
         Ok(Self {
             root,
             document,
-            files,
+            data,
         })
     }
 
@@ -55,28 +55,22 @@ impl Manifest {
         let Self {
             root,
             mut document,
-            files,
+            data,
         } = self;
         let linker = LinkAdapter { root, linker };
 
         // Use unchecked YAML value access here, as we already deserialized it
         // into `Files` so we know its valid.
 
-        document["schema"]["file"] = linker.file(&files.schema.file)?;
-        for (i, data_source) in files.data_sources.iter().enumerate() {
+        document["schema"]["file"] = linker.file(&data.schema.file)?;
+        for (i, data_source) in data.data_sources.iter().enumerate() {
             let d_data_source = &mut document["dataSources"][i];
             d_data_source["mapping"]["file"] = linker.link(
-                mappings.resolve(
-                    data_source
-                        .mapping
-                        .file
-                        .as_deref()
-                        .or_else(|| mappings.default_mapping())
-                        .context(
-                            "more than one possible mapping Wasm modules. \
-                             Try manually specifying a mapping file.",
-                        )?,
-                )?,
+                // TODO(nlordell): Parse a custom section of a resolved mapping
+                // as a YAML document and "merge" it with the mapping properties
+                // here so it can specify things like `apiVersion` field
+                // depending on the `subgraph` crate version.
+                mappings.resolve(data_source.mapping.file.as_deref())?,
             )?;
 
             for (i, abi) in data_source.mapping.abis.iter().enumerate() {
@@ -89,30 +83,30 @@ impl Manifest {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-struct Files<F> {
+#[derive(Deserialize)]
+struct Data<F> {
     schema: Schema<F>,
     #[serde(rename = "dataSources")]
     data_sources: Vec<DataSource<F>>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct Schema<F> {
     file: F,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct DataSource<F> {
     mapping: Mapping<F>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct Mapping<F> {
     abis: Vec<Abi<F>>,
     file: Option<F>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 struct Abi<F> {
     file: F,
 }
@@ -167,15 +161,15 @@ mod tests {
         let manifest =
             Manifest::read(&Path::new(env!("CARGO_MANIFEST_DIR")).join("test/subgraph.yaml"))
                 .unwrap();
-        assert_eq!(manifest.files.schema.file, Path::new("schema.graphql"));
-        assert_eq!(manifest.files.data_sources.len(), 1);
-        assert_eq!(manifest.files.data_sources[0].mapping.abis.len(), 1);
+        assert_eq!(manifest.data.schema.file, Path::new("schema.graphql"));
+        assert_eq!(manifest.data.data_sources.len(), 1);
+        assert_eq!(manifest.data.data_sources[0].mapping.abis.len(), 1);
         assert_eq!(
-            manifest.files.data_sources[0].mapping.abis[0].file,
+            manifest.data.data_sources[0].mapping.abis[0].file,
             Path::new("MyContract.abi"),
         );
         assert_eq!(
-            manifest.files.data_sources[0].mapping.file.as_deref(),
+            manifest.data.data_sources[0].mapping.file.as_deref(),
             Some(Path::new("mapping.wasm")),
         );
     }
