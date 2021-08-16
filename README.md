@@ -8,9 +8,6 @@ Write subgraph mappings in Rust 🦀
 
 - [ ] Add better logging and `-v|--verbose` flag
 - [ ] Improve diplaying errors to users
-- [ ] Wasm module post-processing:
-  - `start` function export
-  - `wasm-opt`
 - [ ] Finish porting all APIs to `subgraph` crate
   - [ ] bigDecimal
   - [-] bigInt
@@ -24,5 +21,4 @@ Write subgraph mappings in Rust 🦀
   - [ ] store
   - [-] typeConversion
 - [ ] ABI Code generation
-- [ ] `subgraph` insert custom section to ammend manifest
 - [ ] Upgrade to `apiVersion: 0.0.5` (requires changes to AssemblyScript types)

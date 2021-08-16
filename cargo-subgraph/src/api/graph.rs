@@ -189,7 +189,8 @@ mod tests {
         let ipfs = ipfs::Client::new(Url::parse("http://localhost:5001").unwrap());
         ipfs.add_and_pin(&testdir.join("schema.graphql")).unwrap();
         ipfs.add_and_pin(&testdir.join("MyContract.abi")).unwrap();
-        ipfs.add_and_pin(&testdir.join("mapping.wasm")).unwrap();
+        ipfs.add_and_pin(&testdir.join("vendored_mapping.wasm"))
+            .unwrap();
         let manifest = ipfs
             .add_and_pin(&testdir.join("subgraph.linked.yaml"))
             .unwrap();

@@ -4,7 +4,7 @@ use crate::{
     api::{cargo, graph},
     linker::Linker,
     manifest::Manifest,
-    mappings::Mappings,
+    mappings::{MappingOpions, Mappings},
 };
 use anyhow::{Context as _, Result};
 use std::path::PathBuf;
@@ -24,6 +24,9 @@ pub struct Options {
 
     #[structopt(long, help = "URL of the IPFS node to upload to.")]
     ipfs_node: Url,
+
+    #[structopt(long, help = "Optimize compiled mappings with `wasm-opt`.")]
+    wasm_opt: bool,
 }
 
 pub fn run(options: Options) -> Result<()> {
@@ -41,7 +44,12 @@ pub fn run(options: Options) -> Result<()> {
     )?;
     client.deploy(
         &options.subgraph_name,
-        manifest.link(Linker::new(options.ipfs_node)?, Mappings::compile()?)?,
+        manifest.link(
+            Linker::new(options.ipfs_node)?,
+            Mappings::compile(MappingOpions {
+                optimize: options.wasm_opt,
+            })?,
+        )?,
     )?;
 
     Ok(())

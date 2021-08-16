@@ -65,13 +65,16 @@ impl Manifest {
         document["schema"]["file"] = linker.file(&data.schema.file)?;
         for (i, data_source) in data.data_sources.iter().enumerate() {
             let d_data_source = &mut document["dataSources"][i];
-            d_data_source["mapping"]["file"] = linker.link(
-                // TODO(nlordell): Parse a custom section of a resolved mapping
-                // as a YAML document and "merge" it with the mapping properties
-                // here so it can specify things like `apiVersion` field
-                // depending on the `subgraph` crate version.
-                mappings.resolve(data_source.mapping.file.as_deref())?,
-            )?;
+
+            let mapping_file = &data_source.mapping.file;
+            d_data_source["mapping"]["file"] = if mapping_file.extension() == Some("wasm".as_ref())
+            {
+                // The subgraph is asking for a vendored Wasm file. Nothing more
+                // to do!
+                linker.file(mapping_file)?
+            } else {
+                linker.link(mappings.resolve(mapping_file, &data_source.mapping.api_version)?)?
+            };
 
             for (i, abi) in data_source.mapping.abis.iter().enumerate() {
                 let d_abi = &mut d_data_source["mapping"]["abis"][i];
@@ -102,8 +105,10 @@ struct DataSource<F> {
 
 #[derive(Deserialize)]
 struct Mapping<F> {
+    #[serde(rename = "apiVersion")]
+    api_version: String,
     abis: Vec<Abi<F>>,
-    file: Option<F>,
+    file: F,
 }
 
 #[derive(Deserialize)]
@@ -152,9 +157,9 @@ impl LinkAdapter {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use super::*;
+    use crate::{api::cargo::WasmArtifact, mappings::MappingOpions};
+    use std::fs;
 
     #[test]
     fn deserialize_manifest() {
@@ -162,15 +167,26 @@ mod tests {
             Manifest::read(&Path::new(env!("CARGO_MANIFEST_DIR")).join("test/subgraph.yaml"))
                 .unwrap();
         assert_eq!(manifest.data.schema.file, Path::new("schema.graphql"));
-        assert_eq!(manifest.data.data_sources.len(), 1);
+        assert_eq!(manifest.data.data_sources.len(), 2);
+        assert_eq!(manifest.data.data_sources[0].mapping.api_version, "0.0.4");
         assert_eq!(manifest.data.data_sources[0].mapping.abis.len(), 1);
         assert_eq!(
             manifest.data.data_sources[0].mapping.abis[0].file,
             Path::new("MyContract.abi"),
         );
         assert_eq!(
-            manifest.data.data_sources[0].mapping.file.as_deref(),
-            Some(Path::new("mapping.wasm")),
+            manifest.data.data_sources[0].mapping.file,
+            Path::new("my-subgraph"),
+        );
+        assert_eq!(manifest.data.data_sources[1].mapping.abis.len(), 1);
+        assert_eq!(manifest.data.data_sources[1].mapping.api_version, "0.0.4");
+        assert_eq!(
+            manifest.data.data_sources[1].mapping.abis[0].file,
+            Path::new("MyContract.abi"),
+        );
+        assert_eq!(
+            manifest.data.data_sources[1].mapping.file,
+            Path::new("vendored_mapping.wasm"),
         );
     }
 
@@ -182,10 +198,14 @@ mod tests {
                 .unwrap();
 
         let (outdir, linker) = Linker::test();
-        let mappings = Mappings::from_artifacts(vec![
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("test/mapping.wasm")
-        ])
-        .unwrap();
+        let mappings = Mappings::from_artifacts(
+            vec![WasmArtifact {
+                name: "my-subgraph".into(),
+                path: Path::new(env!("CARGO_MANIFEST_DIR")).join("test/my_subgraph.wasm"),
+                opt_level: "3".to_owned(),
+            }],
+            MappingOpions { optimize: true },
+        );
 
         manifest.link(linker, mappings).unwrap();
         let linked = fs::read_to_string(outdir.path().join("subgraph.yaml")).unwrap();

@@ -1,6 +1,6 @@
 //! A simple API wrapper around the `cargo` binary.
 
-use anyhow::{ensure, Result};
+use anyhow::{bail, ensure, Result};
 use serde::Deserialize;
 use serde_json::{Deserializer, Value};
 use std::{env, ffi::OsStr, path::PathBuf, process::Command};
@@ -48,7 +48,7 @@ struct Metadata {
 /// Builds a project as a Wasm module.
 ///
 /// Returns all Wasm module compiler artifacts.
-pub fn build_wasm() -> Result<Vec<PathBuf>> {
+pub fn build_wasm() -> Result<Vec<WasmArtifact>> {
     let output = cargo(|command| {
         command.args(&[
             "build",
@@ -63,13 +63,28 @@ pub fn build_wasm() -> Result<Vec<PathBuf>> {
         .try_fold(Vec::new(), |mut modules, message| -> Result<_> {
             let message = message?;
             if message.reason == "compiler-artifact" {
-                let artifact = serde_json::from_value::<CompilerArtifact>(message.data)?;
-                modules.extend(
-                    artifact
-                        .filenames
-                        .into_iter()
-                        .filter(|filename| filename.extension() == Some(OsStr::new("wasm"))),
-                );
+                let CompilerArtifact {
+                    target,
+                    profile,
+                    filenames,
+                } = serde_json::from_value(message.data)?;
+
+                let mut wasm_filenames = filenames
+                    .into_iter()
+                    .filter(|filename| filename.extension() == Some(OsStr::new("wasm")));
+                match (wasm_filenames.next(), wasm_filenames.next()) {
+                    (Some(path), None) => {
+                        modules.push(WasmArtifact {
+                            path,
+                            name: target.name,
+                            opt_level: profile.opt_level,
+                        });
+                    }
+                    (Some(_), Some(_)) => {
+                        bail!("more than one Wasm module output for a single target");
+                    }
+                    (None, _) => {}
+                }
             }
             Ok(modules)
         })?;
@@ -86,7 +101,29 @@ struct Message {
 
 #[derive(Deserialize)]
 struct CompilerArtifact {
+    target: Target,
+    profile: Profile,
     filenames: Vec<PathBuf>,
+}
+
+#[derive(Deserialize)]
+struct Target {
+    name: String,
+}
+
+#[derive(Deserialize)]
+struct Profile {
+    opt_level: String,
+}
+
+/// A Wasm module output by the Rust compiler.
+pub struct WasmArtifact {
+    /// The path to the Wasm module.
+    pub path: PathBuf,
+    /// The name of the artifact.
+    pub name: String,
+    /// The optimization level used for compiling it.
+    pub opt_level: String,
 }
 
 fn cargo(config: impl FnOnce(&mut Command) -> &mut Command) -> Result<Vec<u8>> {
@@ -131,9 +168,9 @@ mod tests {
         for_each_sample(
             || Ok((crate_name()?, root()?, target_directory()?)),
             |(name, root, target)| {
-                println!("Found sample '{}'", name);
-                println!("        root '{}'", root.display());
-                println!("      target '{}'", target.display());
+                println!("- Found sample '{}'", name);
+                println!("          root '{}'", root.display());
+                println!("        target '{}'", target.display());
             },
         );
     }
@@ -144,7 +181,9 @@ mod tests {
         println!("Sample Wasm build artifacts:");
         for_each_sample(build_wasm, |modules| {
             for module in modules {
-                println!(" - '{}'", module.display());
+                println!(" - Built artifact '{}'", module.path.display());
+                println!("             name '{}'", module.name);
+                println!("        opt level '-O{}'", module.opt_level);
             }
         });
     }

@@ -48,6 +48,10 @@ pub mod exports {
 
         unsafe { alloc::alloc(layout) }
     }
+
+    #[no_mangle]
+    #[link_section = "apiVersion"]
+    pub static API_VERSION: [u8; 5] = *b"0.0.4";
 }
 
 /// Unused exports when not targetting for The Graph host. This unused method
