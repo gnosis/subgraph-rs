@@ -1,28 +1,25 @@
 //! AssemblyScript array buffer and typed array implementations.
 
 use crate::ffi::buffer::{AscBuf, AscBuffer};
+use std::borrow::Cow;
 
 /// An owned AssemblyScript array buffer.
 pub type AscArrayBuffer = AscBuffer<u8, u64>;
 
-impl AscArrayBuffer {
-    /// Returns the the array buffer as a slice of bytes.
-    pub fn as_bytes(&self) -> &[u8] {
-        self.as_slice()
-    }
-}
+/// An borrowed AssemblyScript array buffer.
+pub type AscArrayBuf = AscBuf<u8, u64>;
 
 /// A `u8` typed array that slices an array buffer.
 #[repr(C)]
 pub struct AscUint8Array<'a> {
-    buffer: &'a AscBuf<u8, u64>,
+    buffer: &'a AscArrayBuf,
     offset: usize,
     len: usize,
 }
 
 impl<'a> AscUint8Array<'a> {
     /// Creates a typed array view over the entire specifed array buffer.
-    pub fn new(buffer: &'a AscBuf<u8, u64>) -> Self {
+    pub fn new(buffer: &'a AscArrayBuf) -> Self {
         Self {
             buffer,
             offset: 0,
@@ -31,13 +28,17 @@ impl<'a> AscUint8Array<'a> {
     }
 
     /// Returns the `u8` typed array as a Rust slice.
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &'a [u8] {
         &self.buffer.as_slice()[self.offset..(self.offset + self.len)]
     }
 
     /// Creates an owned AssemblyScript array buffer from the sliced bytes.
-    pub fn to_array_buffer(&self) -> Box<AscArrayBuffer> {
-        AscArrayBuffer::new(self.as_bytes())
+    pub fn to_array_buffer(&self) -> Cow<'a, AscArrayBuf> {
+        if self.offset == 0 && self.len == self.buffer.len() {
+            Cow::Borrowed(self.buffer)
+        } else {
+            Cow::Owned(AscArrayBuffer::new(self.as_bytes()))
+        }
     }
 }
 

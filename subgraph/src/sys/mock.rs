@@ -12,7 +12,7 @@ pub unsafe fn abort(_: &AscStr, _: Option<&AscStr>, _: u32, _: u32) -> ! {
 pub mod bigInt {
     use super::*;
 
-    pub unsafe fn plus<'host>(_x: BigInt, _y: BigInt) -> BigInt<'host> {
+    pub unsafe fn plus(_x: &BigInt, _y: &BigInt) -> *mut BigInt<'static> {
         todo!()
     }
 }
@@ -28,7 +28,7 @@ pub mod log {
 pub mod typeConversion {
     use super::*;
 
-    pub unsafe fn bigIntToString(_x: BigInt) -> &AscStr {
+    pub unsafe fn bigIntToString(_x: BigInt) -> *mut AscStr {
         todo!()
     }
 }

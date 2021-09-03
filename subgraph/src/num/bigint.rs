@@ -1,20 +1,29 @@
 //! Subgraph arbitrary precision integer implementation.
 
-use crate::{ffi::array::AscArrayBuffer, sys};
-use std::fmt::{self, Debug, Display, Formatter};
+use crate::{
+    ffi::array::{AscArrayBuf, AscArrayBuffer},
+    sys,
+};
+use std::{
+    borrow::Cow,
+    fmt::{self, Debug, Display, Formatter},
+};
 
 /// A arbitrary precision big integer. This uses the host big integer
 /// implementation through the provided import functions.
 ///
 /// `BitInt` is represented on the host as its little-endian bytes.
 pub struct BigInt {
-    inner: Box<AscArrayBuffer>,
+    inner: Cow<'static, AscArrayBuf>,
 }
 
 impl BigInt {
     /// Creates a `BigInt` instance from unsigned little endian bytes.
     pub fn from_unsigned_bytes_le(bytes: impl AsRef<[u8]>) -> Self {
-        let bytes = bytes.as_ref();
+        Self::from_unsigned_slice_le(bytes.as_ref())
+    }
+
+    fn from_unsigned_slice_le(bytes: &[u8]) -> Self {
         if matches!(bytes.last(), Some(byte) if byte & 0x80 != 0) {
             // NOTE: We need to append an extra `0`-byte so that the value isn't
             // treated as negative.
@@ -30,17 +39,23 @@ impl BigInt {
     /// Creates a `BigInt` instance from signed little endian bytes.
     pub fn from_signed_bytes_le(bytes: impl AsRef<[u8]>) -> Self {
         Self {
-            inner: AscArrayBuffer::new(bytes.as_ref()),
+            inner: Cow::Owned(AscArrayBuffer::new(bytes.as_ref())),
         }
     }
 
     /// Add the specified `BigInt` to `self`, returning the result.
     pub fn add(&self, rhs: &Self) -> Self {
-        let x = self.as_host();
-        let y = rhs.as_host();
+        BigInt::binop(self, rhs, sys::bigInt::plus)
+    }
 
-        // SAFETY: The host allocation gets cloned to an owned array buffer.
-        let inner = unsafe { sys::bigInt::plus(x, y).to_array_buffer() };
+    fn binop(
+        x: &Self,
+        y: &Self,
+        op: unsafe fn(&sys::BigInt, &sys::BigInt) -> *mut sys::BigInt<'static>,
+    ) -> Self {
+        // SAFETY: The host guarantees that every `BigInt` allocation lives
+        // longer than the mapping, effectively giving it a `'static` lifetime.
+        let inner = unsafe { (*op(&x.as_host(), &y.as_host())).to_array_buffer() };
 
         Self { inner }
     }
@@ -50,7 +65,7 @@ impl BigInt {
     /// - `1` if the number is positive
     /// - `-1` if the number is negative
     pub fn signum(&self) -> i32 {
-        let bytes = self.inner.as_bytes();
+        let bytes = self.inner.as_slice();
 
         // NOTE: In LE, the most significant bit, which contains the sign
         // information is the last byte.
@@ -79,8 +94,8 @@ impl Debug for BigInt {
 impl Display for BigInt {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let x = self.as_host();
-        let s = {
-            let asc_str = unsafe { sys::typeConversion::bigIntToString(x) };
+        let s = unsafe {
+            let asc_str = &*sys::typeConversion::bigIntToString(x);
             asc_str
                 .to_string()
                 .expect("integer strings are always valid UTF-16")
@@ -114,13 +129,13 @@ mod tests {
     #[test]
     fn primitive_conversion() {
         let x = BigInt::from(42u32);
-        assert_eq!(x.inner.as_bytes(), [42, 0, 0, 0]);
+        assert_eq!(x.inner.as_slice(), [42, 0, 0, 0]);
 
         let x = BigInt::from(u32::MAX);
-        assert_eq!(x.inner.as_bytes(), [0xff, 0xff, 0xff, 0xff, 0]);
+        assert_eq!(x.inner.as_slice(), [0xff, 0xff, 0xff, 0xff, 0]);
 
         let x = BigInt::from(-1i32);
-        assert_eq!(x.inner.as_bytes(), [0xff, 0xff, 0xff, 0xff]);
+        assert_eq!(x.inner.as_slice(), [0xff, 0xff, 0xff, 0xff]);
     }
 
     #[test]

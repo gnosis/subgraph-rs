@@ -4,8 +4,7 @@ use std::{
     alloc::{self, Layout, LayoutError},
     borrow::{Borrow, ToOwned},
     fmt::{self, Debug, Formatter},
-    marker::PhantomData,
-    mem,
+    mem::{self, MaybeUninit},
     ops::Deref,
     ptr, slice,
 };
@@ -16,8 +15,13 @@ use std::{
 /// partial dynamically sized type (DST) support. For more information see:
 /// <https://doc.rust-lang.org/nomicon/exotic-sizes.html#dynamically-sized-types-dsts>
 #[repr(C)]
-struct Inner<T: ?Sized> {
+struct Inner<T: ?Sized, Alignment> {
     len: usize,
+    // Make sure that the start of the buffer is aligned to the specified type.
+    // This is important for AssemblyScript `ArrayBuffer`s which are aligned to
+    // 8 bytes, so there are 4 bytes of padding between the length and the start
+    // of the buffer.
+    _align: [Alignment; 0],
     buf: T,
 }
 
@@ -25,8 +29,7 @@ struct Inner<T: ?Sized> {
 /// and aligned to `Alignment`.
 #[repr(transparent)]
 pub struct AscBuf<T, Alignment = T> {
-    _type: PhantomData<T>,
-    inner: Inner<[Alignment; 0]>,
+    inner: Inner<[T; 0], Alignment>,
 }
 
 impl<T, A> AscBuf<T, A> {
@@ -37,13 +40,13 @@ impl<T, A> AscBuf<T, A> {
 
     /// Returns the buffer as a Rust slice.
     pub fn as_slice(&self) -> &[T] {
-        let Inner { len, buf } = &self.inner;
+        let Inner { len, buf, .. } = &self.inner;
 
         // SAFETY: `AscBuf` can only be constructed from an `AscBuffer` which
         // correctly allocates the storage starting at `buf` to have `len`
         // elements. Additionally we *assume* that all `AscBuf` references from
         // host calls are valid in the same way.
-        unsafe { slice::from_raw_parts((buf as *const A).cast(), *len) }
+        unsafe { slice::from_raw_parts(buf as *const _, *len) }
     }
 }
 
@@ -73,8 +76,7 @@ impl<T, A> ToOwned for AscBuf<T, A> {
 /// An owned AssemblyScript dynamically sized buffer with elements of type `T`
 /// and aligned to `Alignment`.
 pub struct AscBuffer<T, Alignment = T> {
-    _type: PhantomData<T>,
-    inner: Inner<[Alignment]>,
+    inner: Inner<[T], Alignment>,
 }
 
 impl<T, A> AscBuffer<T, A> {
@@ -97,7 +99,7 @@ impl<T, A> AscBuffer<T, A> {
                 slice.len(),
             );
 
-            buffer
+            mem::transmute(buffer)
         }
     }
 
@@ -159,7 +161,7 @@ struct DstRef {
 ///
 /// This method returns an *uninitialized* AssemblyScript buffer. It is
 /// undefined behaviour to use if without proper initialization.
-unsafe fn alloc_buffer<T, A>(len: usize) -> Box<AscBuffer<T, A>> {
+unsafe fn alloc_buffer<T, A>(len: usize) -> Box<AscBuffer<MaybeUninit<T>, A>> {
     let layout = buffer_layout::<T, A>(len)
         .expect("attempted to allocate a buffer that is larger than the address space.");
 
@@ -170,13 +172,8 @@ unsafe fn alloc_buffer<T, A>(len: usize) -> Box<AscBuffer<T, A>> {
         ptr: alloc::alloc(layout),
         // NOTE: Guaranteed not to overflow, or else creating the layout would
         // have errored.
-        len: ceil_div(len * mem::size_of::<T>(), mem::size_of::<A>()),
+        len,
     })
-}
-
-/// Ceiling integer usize division.
-fn ceil_div(n: usize, d: usize) -> usize {
-    (n + d - 1) / d
 }
 
 #[cfg(test)]
@@ -194,8 +191,9 @@ mod tests {
     fn buffer_layout_matches_dst_layout() {
         assert_eq!(
             Layout::for_value(&*{
-                let inner: Box<Inner<[u16]>> = Box::new(Inner {
+                let inner: Box<Inner<[u16], u16>> = Box::new(Inner {
                     len: 0,
+                    _align: [],
                     buf: [0; 5],
                 });
                 inner
@@ -204,8 +202,9 @@ mod tests {
         );
         assert_eq!(
             Layout::for_value(&*{
-                let inner: Box<Inner<[u16]>> = Box::new(Inner {
+                let inner: Box<Inner<[u16], u16>> = Box::new(Inner {
                     len: 0,
+                    _align: [],
                     buf: [0; 8],
                 });
                 inner
@@ -215,16 +214,10 @@ mod tests {
     }
 
     #[test]
-    fn buffer_has_length_set_to_alignment() {
-        let buffer = AscBuffer::<u16, u64>::new([42, 1337]);
-        assert_eq!(buffer.inner.buf.len(), 1);
-        assert_eq!(buffer.inner.len, 2);
-    }
-
-    #[test]
-    fn dst_ref_layout() {
-        let inner: Box<Inner<[u16]>> = Box::new(Inner {
+    fn ascstr_dst_ref_layout() {
+        let inner: Box<Inner<[u16], u16>> = Box::new(Inner {
             len: 0,
+            _align: [],
             buf: [0; 5],
         });
 
@@ -234,7 +227,24 @@ mod tests {
         assert_eq!(inner_ref.ptr, inner_ptr.cast::<u8>());
         assert_eq!(inner_ref.len, 5);
 
-        mem::drop(unsafe { mem::transmute::<_, Box<Inner<[u16]>>>(inner_ref) });
+        mem::drop(unsafe { mem::transmute::<_, Box<Inner<[u16], u16>>>(inner_ref) });
+    }
+
+    #[test]
+    fn ascarraybuf_dst_ref_layout() {
+        let inner: Box<Inner<[u8], u64>> = Box::new(Inner {
+            len: 0,
+            _align: [],
+            buf: [0; 13],
+        });
+
+        let inner_ptr = &inner.len as *const usize;
+        let inner_ref: DstRef = unsafe { mem::transmute(inner) };
+
+        assert_eq!(inner_ref.ptr, inner_ptr.cast::<u8>());
+        assert_eq!(inner_ref.len, 13);
+
+        mem::drop(unsafe { mem::transmute::<_, Box<Inner<[u16], u16>>>(inner_ref) });
     }
 
     #[test]
@@ -247,8 +257,11 @@ mod tests {
     #[test]
     fn owned_and_borrowed_layout() {
         let buf = AscBuf {
-            _type: PhantomData::<u8>,
-            inner: Inner::<[u64; 0]> { len: 0, buf: [] },
+            inner: Inner::<[u64; 0], u64> {
+                len: 0,
+                _align: [],
+                buf: [],
+            },
         };
 
         let empty_buffer = AscBuffer::<u8, u64>::new([]);
@@ -262,6 +275,6 @@ mod tests {
     }
 
     fn ptr_offset<T, U>(x: &T, y: &U) -> isize {
-        ((x as *const T) as isize) - ((y as *const U) as isize)
+        ((y as *const U) as isize) - ((x as *const T) as isize)
     }
 }

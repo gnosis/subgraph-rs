@@ -17,7 +17,7 @@ pub mod bigInt {
     #[link(wasm_import_module = "index")]
     extern "C" {
         #[link_name = "bigInt.plus"]
-        pub fn plus<'host>(x: BigInt, y: BigInt) -> BigInt<'host>;
+        pub fn plus(x: &BigInt, y: &BigInt) -> *mut BigInt<'static>;
     }
 }
 
@@ -37,6 +37,6 @@ pub mod typeConversion {
     #[link(wasm_import_module = "index")]
     extern "C" {
         #[link_name = "typeConversion.bigIntToString"]
-        pub fn bigIntToString(x: BigInt) -> &AscStr;
+        pub fn bigIntToString(x: &BigInt) -> *mut AscStr;
     }
 }
